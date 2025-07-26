@@ -1,13 +1,13 @@
-import { BottomSheet } from 'native-bottom-sheet';
-import React, { memo, useEffect } from '../../lib/teact/teact';
+import type { InAppBrowserObject } from '@awesome-cordova-plugins/in-app-browser';
+import { BottomSheet } from '@mytonwallet/native-bottom-sheet';
+import { memo, useEffect, useMemo } from '../../lib/teact/teact';
 import { getActions, withGlobal } from '../../global';
 
-import type { CustomInAppBrowserObject } from '../explore/hooks/useWebViewBridge';
-
 import { ANIMATION_LEVEL_DEFAULT } from '../../config';
-import buildClassName from '../../util/buildClassName';
 import { INAPP_BROWSER_OPTIONS } from '../../util/capacitor';
 import { listenOnce } from '../../util/domEvents';
+import { buildInAppBrowserBridgeConnectorCode } from '../../util/embeddedDappBridge/connector/inAppBrowserConnector';
+import { useInAppBrowserBridgeProvider } from '../../util/embeddedDappBridge/provider/useInAppBrowserBridgeProvider';
 import { compact } from '../../util/iteratees';
 import { logDebugError } from '../../util/logs';
 import { waitFor } from '../../util/schedulers';
@@ -16,10 +16,13 @@ import { IS_DELEGATING_BOTTOM_SHEET, IS_IOS, IS_IOS_APP } from '../../util/windo
 
 import useLang from '../../hooks/useLang';
 import useLastCallback from '../../hooks/useLastCallback';
-import useShowTransition from '../../hooks/useShowTransition';
-import { useDappBridge } from '../explore/hooks/useDappBridge';
 
-import styles from './InAppBrowser.module.scss';
+import { getIsAnyNativeBottomSheetModalOpen } from './Modal';
+
+type CustomInAppBrowserObject = Omit<InAppBrowserObject, 'hide' | 'close'> & {
+  hide(): Promise<void>;
+  close(): Promise<void>;
+};
 
 interface StateProps {
   title?: string;
@@ -32,6 +35,7 @@ interface StateProps {
 // The maximum time the in-app browser will take to close (and a little more as a safe margin)
 const CLOSE_MAX_DURATION = 900;
 
+// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
 let inAppBrowser: Cordova['InAppBrowser'] | undefined;
 
 function InAppBrowser({
@@ -39,18 +43,10 @@ function InAppBrowser({
 }: StateProps) {
   const { closeBrowser } = getActions();
 
-  const { hasOpenClass, hasShownClass } = useShowTransition(Boolean(url));
-
   const lang = useLang();
 
-  const {
-    inAppBrowserRef,
-    bridgeInjectionCode,
-    onMessage,
-    disconnect,
-  } = useDappBridge({
-    endpoint: url,
-  });
+  const { setupDappBridge, cleanupDappBridge } = useInAppBrowserBridgeProvider(url);
+  const bridgeInjectionCode = useMemo(() => buildInAppBrowserBridgeConnectorCode(), []);
 
   const handleError = useLastCallback((err: any) => {
     logDebugError('inAppBrowser error', err);
@@ -61,14 +57,12 @@ function InAppBrowser({
       await BottomSheet.enable();
     }
 
-    disconnect();
     inAppBrowser.removeEventListener('loaderror', handleError);
-    inAppBrowser.removeEventListener('message', onMessage);
     inAppBrowser.removeEventListener('exit', handleBrowserClose);
     inAppBrowser = undefined;
-    // eslint-disable-next-line no-null/no-null
-    inAppBrowserRef.current = null;
     closeBrowser();
+
+    cleanupDappBridge();
   });
 
   const openBrowser = useLastCallback(async () => {
@@ -92,10 +86,12 @@ function InAppBrowser({
       `theme=${theme}`,
       `animated=${animationLevel ?? ANIMATION_LEVEL_DEFAULT > 0 ? 'yes' : 'no'}`,
     ]).join(',')}`;
-    inAppBrowser = cordova.InAppBrowser.open(url,
+    inAppBrowser = cordova.InAppBrowser.open(
+      url,
       '_blank',
       INAPP_BROWSER_OPTIONS + ADDITIONAL_INAPP_BROWSER_OPTIONS,
-      bridgeInjectionCode);
+      bridgeInjectionCode,
+    );
 
     const originalHide = inAppBrowser.hide;
     inAppBrowser.hide = () => {
@@ -108,6 +104,13 @@ function InAppBrowser({
           resolve();
         }
       });
+    };
+
+    const originalShow = inAppBrowser.show;
+    inAppBrowser.show = () => {
+      if (!getIsAnyNativeBottomSheetModalOpen()) {
+        originalShow?.();
+      }
     };
 
     const originalClose = inAppBrowser.close;
@@ -138,22 +141,22 @@ function InAppBrowser({
       return closedPromise;
     };
 
-    inAppBrowserRef.current = inAppBrowser;
+    setupDappBridge(inAppBrowser);
+
     inAppBrowser.addEventListener('loaderror', handleError);
-    inAppBrowser.addEventListener('message', onMessage);
     inAppBrowser.addEventListener('exit', handleBrowserClose);
     inAppBrowser.show();
   });
 
   useEffect(() => {
-    if (!url) return;
+    if (!url) return undefined;
 
     void openBrowser();
-  }, [url, title, subtitle]);
 
-  return (
-    <div className={buildClassName(hasShownClass && styles.browserShown, hasOpenClass && styles.browserOpen)} />
-  );
+    return () => inAppBrowser?.close();
+  }, [url]);
+
+  return undefined;
 }
 
 export default memo(withGlobal((global): StateProps => {

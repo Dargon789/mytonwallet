@@ -1,4 +1,4 @@
-import { Dialog } from 'native-dialog';
+import { Dialog } from '@capacitor/dialog';
 import React, { memo } from '../../../lib/teact/teact';
 import { getActions, withGlobal } from '../../../global';
 
@@ -62,7 +62,7 @@ function NativeBiometricsToggle({ isBiometricAuthEnabled, onEnable }: OwnProps &
     if (!IS_DELEGATED_BOTTOM_SHEET) return;
 
     if (isWarningModalOpen) {
-      Dialog.confirm({
+      void Dialog.confirm({
         title: lang(warningTitle),
         message: lang(warningDescription),
         okButtonTitle: lang('Yes'),

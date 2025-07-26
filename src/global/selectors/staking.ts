@@ -1,13 +1,12 @@
 import type { ApiStakingState } from '../../api/types';
 import type { GlobalState } from '../types';
 
-import { DEFAULT_NOMINATORS_STAKING_STATE, TONCOIN } from '../../config';
+import { DEFAULT_NOMINATORS_STAKING_STATE, IS_STAKING_DISABLED, TONCOIN } from '../../config';
 import { buildCollectionByKey } from '../../util/iteratees';
 import memoize from '../../util/memoize';
 import withCache from '../../util/withCache';
 import { selectAccountState } from './accounts';
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const selectAccountStakingStatesMemoizedFor = withCache((accountId: string) => memoize((
   stateDefault: ApiStakingState,
   stateById?: Record<string, ApiStakingState>,
@@ -21,7 +20,6 @@ export function selectAccountStakingStates(global: GlobalState, accountId: strin
   return selectAccountStakingStatesMemoizedFor(accountId)(global.stakingDefault, stateById);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const selectAccountStakingStatesBySlugMemoizedFor = withCache((accountId: string) => memoize(
   (stakingStates: ApiStakingState[]) => buildCollectionByKey(stakingStates, 'tokenSlug'),
 ));
@@ -50,4 +48,8 @@ export function selectAccountStakingTotalProfit(global: GlobalState, accountId: 
   const accountState = selectAccountState(global, accountId);
   const stakingState = selectAccountStakingState(global, accountId);
   return (stakingState.tokenSlug === TONCOIN.slug ? accountState?.staking?.totalProfit : undefined) ?? 0n;
+}
+
+export function selectIsStakingDisabled(global: GlobalState) {
+  return Boolean(IS_STAKING_DISABLED || global.settings.isTestnet);
 }

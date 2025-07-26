@@ -128,6 +128,7 @@ Hide Tiny Transfers: Küçük Transferleri Gizle
 Toggle Hide Tiny Transfers: Küçük Transferleri Gizlemeyi Aç/Kapat
 Network: Ağ
 Developer Options: Geliştirici Seçenekleri
+All Wallet Versions: Tüm cüzdan sürümleri
 Confirmation: Onay
 Signing Data: İmza Verisi
 Contract Initialization Data: Sözleşme Başlatma Verileri
@@ -163,6 +164,7 @@ Received: Alındı
 Sent: Gönder
 $transaction_from: bu adresten = %address%
 $transaction_to: bu adrese = %address%
+$transaction_on: "%address%'ta"
 Wallet is not backed up: Cüzdan yedeklenmemiş
 Testnet Version: Testnet Sürümü
 Error reading clipboard: Pano okunurken hata oluştu
@@ -177,6 +179,13 @@ Incorrect address.: Hatalı adres.
 Paste: Yapıştır
 Insufficient balance: Yetersiz bakiye
 Insufficient Balance: Yetersiz Bakiye
+$seed_phrase_scam_warning: |
+  **Dikkat!** Yakın zamanda, token çekimi için gereken işlem ücretini karşılayacak yeterli bakiyesi olmayan bir cüzdan içe aktardınız.
+
+  Bu durum, ücretleri karşılamak için kendi paranızı yatırmaya yönelten yaygın bir dolandırıcılık türüne benziyor.
+
+  **Kendi paranızı yatırmayın, aksi halde kaybedebilirsiniz!** Bu ve diğer dolandırıcılık türleri hakkında daha fazla bilgiyi %help_center_link%'de bulabilirsiniz.
+$help_center_prepositional: Bilgi Tabanımız
 Optional: Opsiyonel
 $send_token_symbol: "%1$s gönder"
 Is it all ok?: Herşey tamam mı?
@@ -608,6 +617,7 @@ Unfrozen: Dondurulmamış
 Missed: Kaçırıldı
 Frozen: Dondurulmuş
 until %date%: "%date%'a kadar"
+Until %date%: "%date%'a kadar"
 "%volume% in %amount% parts": "%amount% parça halinde %volume%"
 Unfreeze: Çöz
 Claim: İddia
@@ -699,7 +709,7 @@ Best: En İyi
 Use Best Rate: En İyi Oranı Kullan
 Switch to %dex_name%: "%dex_name%'e Geç"
 Built-in DEX Aggregator: Dahili DEX Toplayıcı
-Add tokens: Jeton ekle
+Add Tokens: Jeton Ekle
 No tokens yet: Henüz jeton yok
 $no_tokens_description: Başka bir cüzdandan jeton alın veya izleme için tercih edilen jetonları ayarlardan etkinleştirin.
 Exchange Rate: Döviz Kuru
@@ -793,6 +803,9 @@ Bidding at NFT Auction: NFT müzayedesinde teklif verme
 NFT Bought: NFT satın alındı
 Buying NFT: NFT satın alınıyor
 $buy_nft_action: NFT satın alma
+NFT Sold: NFT satıldı
+Selling NFT: NFT satılıyor
+$sell_nft_action: NFT sat
 Receiving: Alınıyor
 $receive_action: Alım
 Change Palette: Paleti Değiştir
@@ -828,15 +841,92 @@ App will not ask for signature for %1$d minutes after last entry.: Uygulama, son
 Remember for %1$d minutes: "%1$d dakika boyunca hatırla"
 Preview: Önizleme
 $preview_not_guaranteed: Önizleme sonucu **garanti edilmez **ve hizmet tarafından **sahte olabilir**.
+Unverified Source: Doğrulanmamış Kaynak
+$reopen_in_iab: Güvenliğiniz için lütfen bu DApp'i %browserButton% içinde yeniden açın.
+MyTonWallet Browser: MyTonWallet Tarayıcısı
 Exit all wallets: Tüm cüzdanlardan çık
 Can't confirm?: Giriş yapılamıyor mu?
 $safe_staking_ethena_description1: Stake işlemi tamamen merkeziyetsizdir ve **Ethena'nın resmi** denetlenmiş likit stake **akıllı sözleşmeleri** tarafından yürütülür.
 $safe_staking_ethena_description2: Yatırılan USDe stake'i, Ethena'nın **ticaret ve yatırım stratejilerinde** otomatik ve şeffaf bir şekilde ödül kazanmak için kullanılır.
-$safe_staking_ethena_description3: Stake'inizi ödüllerle birlikte **istediğiniz zaman çekebilirsiniz** ve Ethena'nın standart çekim süresine göre **7 gün içinde** hesabınıza iade edilir.
+$safe_staking_ethena_description3: "**Yatırılan tutarı** tahakkuk eden faizlerle birlikte istediğiniz zaman çekebilirsiniz — fonlar, Ethena'nın standart çekim süresine göre **7 gün** içinde ana hesabınıza iade edilecektir."
 Unstake %amount%: "%amount% unstake et"
 Request Unstaking: Stake Çekme Talebi
 $unstaking_when_receive_ethena: Stake'ten çıkan bakiyenizi **7 gün** içinde alabileceksiniz.
 Coins have been unstaked!: Coin’ler çıkarıldı!
 Confirm Upgrading: Yükseltmeyi Onayla
 How does it work?: Nasıl çalışır?
+Multisend: Çoklu Gönder
+Renew All: Tümünü yenile
+Renew: Yenile
+Renew Domain: Alan adını yenile
+Renew Domains: Alan adlarını yenile
+Some domains are about to expire: Bazı alan adlarının süresi dolmak üzere
+$domain_expire: "**%domain%** %days% sona eriyor"
 '%token% Staking': '%token% Stake Etme'
+Add Tab: Sekme Ekle
+Remove Tab: Sekmeyi Kaldır
+Link Domain: Alan adını bağla
+Domain Linked!: Alan adı bağlandı!
+Failed to process domain operation. Please try again.: Domain işlemi işlenemedi. Lütfen tekrar deneyin.
+$domains_amount %1$d:
+  zeroValue: Alan adı yok
+  oneValue: "%1$d alan adı"
+  otherValue: "%1$d alan adı"
+Stake: Stake
+Manage Tokens: Tokenları Yönet
+Claim Rewards: Ödülleri Talep Et
+Configure DNS: DNS yapılandır
+Link to Wallet: Cüzdana bağla
+Change Wallet: Cüzdanı değiştir
+Change Linked Wallet: Bağlı cüzdanı değiştir
+Domain has been renewed!: Alan adı yenilendi!
+Domains have been renewed!: Alan adları yenilendi!
+Linked Wallet: Bağlı cüzdan
+Domain has been linked!: Alan adı bağlandı!
+Link: Bağla
+Confirm Renewing: Yenilemeyi Onayla
+Confirm Linking: Bağlamayı Onayla
+$domains_expire:
+  zeroValue: "Hiçbir alan adı %days% sona ermiyor"
+  oneValue: "**%domain% alan adı** %days% sona eriyor"
+  otherValue: "**%domain% alan adı** %days% sona eriyor"
+$in_days:
+  zeroValue: bugün
+  oneValue: yarın
+  otherValue: "%1$d gün içinde"
+$domain_was_expired: "**%domain%** süresi doldu"
+$domains_was_expired:
+  zeroValue: "Süresi dolan alan adı yok"
+  oneValue: "**%domain% alan adının** süresi doldu"
+  otherValue: "**%domain% alan adının** süresi doldu"
+Reload: Yeniden yükle
+Copy Link: Bağlantıyı kopyala
+Check eligibility for max APY: Maks. APY için uygunluğu kontrol et
+Check eligibility: Uygunluğu kontrol et
+$expired_many: Süresi Doldu
+$expires_in %days%:
+  zeroValue: "%days% sona eriyor"
+  oneValue: "%days% sona eriyor"
+  otherValue: "%days% sona erecekler"
+Message: Mesaj
+Binary Data: İkili Veri
+The binary data content is unclear. Sign it only if you trust the service.: İkili veri içeriği belirsiz. Yalnızca servise güveniyorsanız imzalayın.
+Cell Schema: Hücre Şeması
+Cell Data: Hücre Verisi
+Sign Data: Veriyi İmzala
+Please confirm signature on your Ledger: Lütfen imzayı Ledger cihazınızda onaylayın
+Utilities: Araçlar
+Games: Oyunlar
+Entertainment: Eğlence
+Toggle to landscape layout: Yatay görünüme geç
+Toggle to portrait layout: Dikey görünüme geç
+Attributes: Nitelikler
+Show All: Tümünü göster
+Description: Açıklama
+No additional data.: Ek veri yok.
+Domain was copied!: Alan adı kopyalandı!
+$storage_cleared_title: Uygulama Depolaması Temizlendi
+$storage_cleared_message: |
+  Cüzdan verileriniz tarayıcı veya disk alanı sorunları nedeniyle temizlenmiştir. Lütfen tüm cüzdanlardan çıkış yapın ve ardından gizli kelimelerinizi kullanarak onları manuel olarak yeniden içe aktarın.
+
+  Yardıma ihtiyacınız varsa, lütfen %support_link% ile iletişime geçin.

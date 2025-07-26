@@ -6,7 +6,12 @@ import { getActions, withGlobal } from '../../global';
 
 import type { AuthConfig } from '../../util/authApi/types';
 
-import { AUTO_CONFIRM_DURATION_MINUTES, PIN_LENGTH, WRONG_ATTEMPTS_BEFORE_LOG_OUT_SUGGESTION } from '../../config';
+import {
+  AUTO_CONFIRM_DURATION_MINUTES,
+  PIN_LENGTH,
+  SUPPORT_USERNAME,
+  WRONG_ATTEMPTS_BEFORE_LOG_OUT_SUGGESTION,
+} from '../../config';
 import { selectIsBiometricAuthEnabled, selectIsNativeBiometricAuthEnabled } from '../../global/selectors';
 import authApi from '../../util/authApi';
 import { getHasInMemoryPassword, getInMemoryPassword } from '../../util/authApi/inMemoryPasswordStore';
@@ -14,6 +19,7 @@ import { getDoesUsePinPad, getIsFaceIdAvailable, getIsTouchIdAvailable } from '.
 import buildClassName from '../../util/buildClassName';
 import captureKeyboardListeners from '../../util/captureKeyboardListeners';
 import { stopEvent } from '../../util/domEvents';
+import { getTranslation } from '../../util/langProvider';
 import { pause } from '../../util/schedulers';
 import { createSignal } from '../../util/signals';
 import { IS_ANDROID_APP, IS_DELEGATING_BOTTOM_SHEET } from '../../util/windowEnvironment';
@@ -24,7 +30,6 @@ import { useDeviceScreen } from '../../hooks/useDeviceScreen';
 import useEffectOnce from '../../hooks/useEffectOnce';
 import useFlag from '../../hooks/useFlag';
 import useFocusAfterAnimation from '../../hooks/useFocusAfterAnimation';
-import useHideBottomBar from '../../hooks/useHideBottomBar';
 import useLang from '../../hooks/useLang';
 import useLastCallback from '../../hooks/useLastCallback';
 import { useMatchCount } from '../../hooks/useMatchCount';
@@ -41,7 +46,7 @@ import modalStyles from './Modal.module.scss';
 import styles from './PasswordForm.module.scss';
 
 type OperationType = 'transfer' | 'sending' | 'staking' | 'unstaking' | 'swap'
-| 'unfreeze' | 'passcode' | 'unlock' | 'claim' | 'turnOnBiometrics' | 'mintCard';
+  | 'unfreeze' | 'passcode' | 'unlock' | 'claim' | 'turnOnBiometrics' | 'mintCard';
 
 interface OwnProps {
   isActive: boolean;
@@ -98,6 +103,33 @@ function useInMemoryPassword(inMemoryPasswordRef: RefObject<string | undefined>)
   return hasInMemoryPassword;
 }
 
+function useStorageClearedDialog(operationType?: OperationType) {
+  const { showDialog, signOut } = getActions();
+
+  return useLastCallback(() => {
+    showDialog({
+      title: '$storage_cleared_title',
+      message: getTranslation('$storage_cleared_message', {
+        support_link: (
+          <a href={`https://t.me/${SUPPORT_USERNAME}`} target="_blank" rel="noreferrer">
+            @{SUPPORT_USERNAME}
+          </a>
+        ),
+      }),
+      footerButtons: [
+        <Button
+          isDestructive
+          onClick={() => signOut({ level: 'all' })}
+        >
+          {getTranslation('Log Out')}
+        </Button>,
+      ],
+      noBackdropClose: true,
+      isInAppLock: operationType === 'unlock',
+    });
+  });
+}
+
 function PasswordForm({
   isActive,
   isLoading,
@@ -134,8 +166,7 @@ function PasswordForm({
 
   const showOnlyConfirmScreen = skipAuthScreen && hasInMemoryPassword;
 
-  // eslint-disable-next-line no-null/no-null
-  const passwordRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>();
   const [password, setPassword] = useState<string>('');
   const [localError, setLocalError] = useState<string>('');
   const [wrongAttempts, setWrongAttempts] = useState(0);
@@ -145,6 +176,7 @@ function PasswordForm({
   const canUsePinPad = getDoesUsePinPad();
   const [isLogOutModalOpened, openLogOutModal, closeLogOutModal] = useFlag(false);
   const shouldSuggestLogout = useMatchCount(!!error || !!localError, WRONG_ATTEMPTS_BEFORE_LOG_OUT_SUGGESTION);
+  const showStorageClearedDialog = useStorageClearedDialog(operationType);
 
   useEffect(() => {
     if (isActive) {
@@ -154,8 +186,6 @@ function PasswordForm({
     }
   }, [isActive]);
 
-  useHideBottomBar(isActive);
-
   const submitCallback = useLastCallback(async (enteredPassword: string) => {
     const passwordToReturn = showOnlyConfirmScreen ? memoizedPasswordRef.current! : enteredPassword;
     onSubmit(passwordToReturn);
@@ -163,6 +193,15 @@ function PasswordForm({
     if (showOnlyConfirmScreen) return;
 
     const passwordVerified = await callApi('verifyPassword', passwordToReturn);
+    if (!passwordVerified) {
+      // Password verification failed - check if it's due to storage corruption
+      const isStorageOk = await callApi('checkWorkerStorageIntegrity');
+      if (!isStorageOk) {
+        return showStorageClearedDialog();
+      }
+      // Storage is intact, so it's just a wrong password - let normal error handling proceed
+    }
+
     if (passwordVerified) {
       setInMemoryPassword({ password: passwordToReturn });
     }

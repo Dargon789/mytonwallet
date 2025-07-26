@@ -4,14 +4,19 @@ export * from './auth';
 export * from './wallet';
 export * from './transactions';
 export * from './nfts';
-export * from './polling';
+export * from './domains';
+export {
+  initPolling,
+  tryUpdateTokens,
+  tryUpdateSwapTokens,
+} from './polling';
 export * from './accounts';
 export * from './staking';
 export * from './tokens';
 export {
   initDapps,
   getDapps,
-  getDappsByOrigin,
+  getDappsByUrl,
   deleteDapp,
   deleteAllDapps,
   loadExploreSites,

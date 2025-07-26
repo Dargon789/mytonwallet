@@ -125,6 +125,7 @@ Hide Tiny Transfers: 隱藏小額轉帳
 Toggle Hide Tiny Transfers: 切換隱藏小額轉帳
 Network: 網路
 Developer Options: 開發者選項
+All Wallet Versions: 所有錢包版本
 Confirmation: 確認
 Signing Data: 簽名數據
 Contract Initialization Data: 合約初始化數據
@@ -160,6 +161,7 @@ Received: 已收到
 Sent: 已送出
 $transaction_from: 從 %address%
 $transaction_to: 到 %address%
+$transaction_on: 上 %address%
 Wallet is not backed up: 錢包未備份
 Testnet Version: 測試網版本
 Error reading clipboard: 讀取剪貼板時出現錯誤
@@ -174,6 +176,13 @@ Incorrect address.: 錯誤的地址。
 Paste: 貼上
 Insufficient balance: 餘額不足
 Insufficient Balance: 餘額不足
+$seed_phrase_scam_warning: |
+  **警告！** 您最近匯入了一個錢包，但錢包內餘額不足以支付提取代幣的手續費。
+
+  這與一種常見的詐騙手法類似，即誘使您存入自己的資金來支付手續費。
+
+  **請勿存入自己的資金，否則可能遭受損失！** 請在我們的%help_center_link%瞭解更多此類及其他詐騙手法。
+$help_center_prepositional: 知識庫
 Optional: 選項
 $send_token_symbol: 發送 %1$s
 Is it all ok?: 全部確認都 OK?
@@ -602,6 +611,7 @@ Unfrozen: 解凍
 Missed: 錯過了
 Frozen: 冷凍
 until %date%: 截至 %date%
+Until %date%: 截至 %date%
 "%volume% in %amount% parts": "%volume% 分成 %amount% 份"
 Unfreeze: 解凍
 Claim: 索賠
@@ -693,7 +703,7 @@ Best: 最佳
 Use Best Rate: 使用最佳匯率
 Switch to %dex_name%: 切換到 %dex_name%
 Built-in DEX Aggregator: 內建Dex聚合器
-Add tokens: 添加令牌
+Add Tokens: 添加令牌
 No tokens yet: 尚無代幣
 $no_tokens_description: 從其他錢包接收代幣，或者在設定中啟用首選代幣進行監控。
 Exchange Rate: 匯率
@@ -787,6 +797,9 @@ Bidding at NFT Auction: NFT 拍賣中出價
 NFT Bought: 已購買 NFT
 Buying NFT: 正在購買 NFT
 $buy_nft_action: 購買 NFT
+NFT Sold: 已售出 NFT
+Selling NFT: 正在出售 NFT
+$sell_nft_action: 出售 NFT
 Receiving: 接收中
 $receive_action: 接收
 Change Palette: 更改調色板
@@ -822,15 +835,91 @@ App will not ask for signature for %1$d minutes after last entry.: 應用程式�
 Remember for %1$d minutes: 記住 %1$d 分鐘
 Preview: 預覽
 $preview_not_guaranteed: 預覽結果**不受保證**，且**可能被服務偽造**。
+Unverified Source: 未經驗證的來源
+$reopen_in_iab: 為了您的安全，請在%browserButton%中重新打開此DApp。
+MyTonWallet Browser: MyTonWallet 瀏覽器
 Exit all wallets: 退出所有錢包
 Can't confirm?: 無法登入？
 $safe_staking_ethena_description1: 質押完全去中心化，由**Ethena官方**審計的流動性質押**智能合約**運營。
 $safe_staking_ethena_description2: 質押的USDe將用於Ethena的**交易和投資策略**，自動透明地產生收益。
-$safe_staking_ethena_description3: 您可以**隨時提取**質押資產及收益，根據Ethena標準提現週期，資金將在**7天內**返還至您的賬戶。
+$safe_staking_ethena_description3: 您可隨時**提取存款**及累計利息——根據Ethena標準提款週期，資金將在**7天**後返還至您的主賬戶。
 Unstake %amount%: 解除質押 %amount%
 Request Unstaking: 申請取消質押
 $unstaking_when_receive_ethena: 您將在 **7 天** 後收到已解除質押的存款。
 Coins have been unstaked!: 代幣已解鎖！
 Confirm Upgrading: 確認升級
 How does it work?: 它是如何運作的？
+Multisend: 批量發送
+Renew All: 全部續費
+Renew: 續費
+Renew Domain: 續費域名
+Renew Domains: 續費域名
+Some domains are about to expire: 部分域名即將到期
+$domain_expire: "**%domain%** 將於%days%到期"
 '%token% Staking': '%token% 質押'
+Add Tab: 新增分頁
+Remove Tab: 移除分頁
+Link Domain: 連結網域
+Domain Linked!: 網域已連結!
+Failed to process domain operation. Please try again.: 網域操作處理失敗，請重試。
+$domains_amount %1$d:
+  zeroValue: 無網域
+  otherValue: "%1$d個網域"
+Stake: 質押
+Manage Tokens: 管理代幣
+Claim Rewards: 領取獎勵
+Configure DNS: 設定DNS
+Link to Wallet: 連結到錢包
+Change Wallet: 變更錢包
+Change Linked Wallet: 變更已連結錢包
+Domain has been renewed!: 網域已續約!
+Domains have been renewed!: 網域已成功續約!
+Linked Wallet: 已連結錢包
+Domain has been linked!: 網域已連結!
+Link: 連結
+Confirm Renewing: 確認續約
+Confirm Linking: 確認連結
+$domains_expire:
+  zeroValue: "沒有網域將於%days%到期"
+  oneValue: "**%domain%個網域** 將於%days%到期"
+  otherValue: "**%domain%個網域** 將於%days%到期"
+$in_days:
+  zeroValue: "今天"
+  oneValue: "明天"
+  otherValue: "%1$d天後"
+$domain_was_expired: "**%domain%** 已過期"
+$domains_was_expired:
+  zeroValue: "沒有網域過期"
+  oneValue: "**%domain%個網域** 已過期"
+  otherValue: "**%domain%個網域** 已過期"
+Reload: 重新載入
+Copy Link: 複製連結
+Check eligibility for max APY: 檢查最大 APY 資格
+Check eligibility: 檢查資格
+$expired_many: 已過期
+$expires_in %days%:
+  zeroValue: "將於%days%到期"
+  oneValue: "將於%days%到期"
+  otherValue: "將於%days%到期"
+Message: 訊息
+Binary Data: 二進位資料
+The binary data content is unclear. Sign it only if you trust the service.: 二進位資料內容不明確。請僅在信任該服務的情況下簽署。
+Cell Schema: 單元結構
+Cell Data: 單元資料
+Sign Data: 簽署資料
+Please confirm signature on your Ledger: 請在您的Ledger上確認簽名
+Utilities: 實用工具
+Games: 遊戲
+Entertainment: 娛樂
+Toggle to landscape layout: 切換至橫屏模式
+Toggle to portrait layout: 切換至豎屏模式
+Attributes: 屬性
+Show All: 顯示全部
+Description: 描述
+No additional data.: 無附加數據。
+Domain was copied!: 網域已複製！
+$storage_cleared_title: 應用程式儲存已清除
+$storage_cleared_message: |
+  您的錢包資料因瀏覽器或磁碟空間問題而被清除。請從所有錢包中登出，然後使用您的助記詞手動重新匯入。
+
+  如需協助，請聯繫%support_link%。

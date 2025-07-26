@@ -1,10 +1,11 @@
+import type { SignDataPayload } from '@tonconnect/protocol';
+
 import type { GlobalState } from '../../global/types';
 import type { ApiTonWalletVersion } from '../chains/ton/types';
 import type { ApiTonConnectProof } from '../tonConnect/types';
 import type { ApiActivity } from './activity';
 import type {
   ApiAccountConfig,
-  ApiStakingCommonData,
   ApiSwapAsset,
   ApiVestingInfo,
 } from './backend';
@@ -15,6 +16,7 @@ import type {
   ApiBaseCurrency,
   ApiChain,
   ApiCountryCode,
+  ApiDappConnectionType,
   ApiDappTransfer,
   ApiNft,
   ApiStakingState,
@@ -22,7 +24,7 @@ import type {
   ApiWalletWithVersionInfo,
 } from './misc';
 import type { ApiParsedPayload } from './payload';
-import type { ApiDapp, ApiTonWallet } from './storage';
+import type { ApiDapp } from './storage';
 
 export type ApiUpdateBalances = {
   type: 'updateBalances';
@@ -92,9 +94,16 @@ export type ApiUpdateStaking = {
   type: 'updateStaking';
   accountId: string;
   states: ApiStakingState[];
-  common: ApiStakingCommonData;
   totalProfit: bigint;
   shouldUseNominators?: boolean;
+};
+
+export type ApiUpdateDappSignData = {
+  type: 'dappSignData';
+  promiseId: string;
+  accountId: string;
+  dapp: ApiDapp;
+  payloadToSign: SignDataPayload;
 };
 
 export type ApiUpdateDappSendTransactions = {
@@ -127,18 +136,19 @@ export type ApiUpdateDappConnectComplete = {
 export type ApiUpdateDappDisconnect = {
   type: 'dappDisconnect';
   accountId: string;
-  origin: string;
+  url: string;
 };
 
 export type ApiUpdateDappLoading = {
   type: 'dappLoading';
-  connectionType: 'connect' | 'sendTransaction';
+  connectionType: ApiDappConnectionType;
   isSse?: boolean;
   accountId?: string;
 };
 
 export type ApiUpdateDappCloseLoading = {
   type: 'dappCloseLoading';
+  connectionType: ApiDappConnectionType;
 };
 
 export type ApiUpdateDapps = {
@@ -190,7 +200,10 @@ export type ApiNftUpdate = ApiUpdateNftReceived | ApiUpdateNftSent | ApiUpdateNf
 export type ApiUpdateAccount = {
   type: 'updateAccount';
   accountId: string;
-  partial: Partial<ApiTonWallet>;
+  chain: ApiChain;
+  address?: string;
+  /** false means that the account has no domain; undefined means that the domain has not changed */
+  domain?: string | false;
 };
 
 export type ApiUpdateConfig = {
@@ -260,6 +273,14 @@ export type ApiUpdateAccountConfig = {
   accountConfig: ApiAccountConfig;
 };
 
+export type ApiUpdateAccountDomainData = {
+  type: 'updateAccountDomainData';
+  accountId: string;
+  expirationByAddress: Record<string, number>;
+  linkedAddressByAddress: Record<string, string>;
+  nfts: Record<string, ApiNft>;
+};
+
 export type ApiUpdate =
   | ApiUpdateBalances
   | ApiUpdateInitialActivities
@@ -276,6 +297,7 @@ export type ApiUpdate =
   | ApiUpdateDappDisconnect
   | ApiUpdateDappLoading
   | ApiUpdateDappCloseLoading
+  | ApiUpdateDappSignData
   | ApiUpdateDapps
   | ApiUpdatePrepareTransaction
   | ApiUpdateProcessDeeplink
@@ -292,6 +314,7 @@ export type ApiUpdate =
   | ApiUpdatingStatus
   | ApiUpdateSettings
   | ApiMigrateCoreApplication
-  | ApiUpdateAccountConfig;
+  | ApiUpdateAccountConfig
+  | ApiUpdateAccountDomainData;
 
 export type OnApiUpdate = (update: ApiUpdate) => void;

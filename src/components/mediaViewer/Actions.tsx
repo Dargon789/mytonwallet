@@ -2,14 +2,18 @@ import React, { memo, useMemo } from '../../lib/teact/teact';
 import { withGlobal } from '../../global';
 
 import type { ApiNft } from '../../api/types';
+import type { NftMenuHandler } from './hooks/useNftMenu';
 import { MediaType } from '../../global/types';
 
 import {
   selectCurrentAccountSettings,
   selectCurrentAccountState,
   selectIsCurrentAccountViewMode,
+  selectTonDnsLinkedAddress,
 } from '../../global/selectors';
 import buildClassName from '../../util/buildClassName';
+import { getCountDaysToDate } from '../../util/dateFormat';
+import { getTonDnsExpirationDate } from '../../util/dns';
 
 import useFlag from '../../hooks/useFlag';
 import useLang from '../../hooks/useLang';
@@ -23,13 +27,14 @@ import { ANIMATION_DURATION } from '../ui/Menu';
 import styles from './MediaViewer.module.scss';
 
 type OwnProps = {
-  // eslint-disable-next-line react/no-unused-prop-types
   mediaId?: string;
   onClose: NoneToVoidFunction;
 };
 
 type StateProps = {
   nft?: ApiNft;
+  tonDnsExpiration?: number;
+  linkedAddress?: string;
   blacklistedNftAddresses?: string[];
   whitelistedNftAddresses?: string[];
   cardBackgroundNft?: ApiNft;
@@ -37,12 +42,30 @@ type StateProps = {
   isViewMode: boolean;
 };
 
+const SHOULD_CLOSE_VIEWER_HANDLERS: NftMenuHandler[] = [
+  'send',
+  'renew',
+  'burn',
+  'collection',
+  'select',
+  'linkDomain',
+];
+
 function Actions({
-  onClose, nft, blacklistedNftAddresses, whitelistedNftAddresses, cardBackgroundNft, accentColorNft, isViewMode,
+  nft,
+  tonDnsExpiration,
+  linkedAddress,
+  blacklistedNftAddresses,
+  whitelistedNftAddresses,
+  cardBackgroundNft,
+  accentColorNft,
+  isViewMode,
+  onClose,
 }: StateProps & OwnProps) {
   const lang = useLang();
   const [isMenuOpen, openMenu, closeMenu] = useFlag();
 
+  const dnsExpireInDays = tonDnsExpiration ? getCountDaysToDate(tonDnsExpiration) : undefined;
   const isNftBlacklisted = useMemo(() => {
     return blacklistedNftAddresses?.includes(nft!.address);
   }, [nft, blacklistedNftAddresses]);
@@ -57,11 +80,18 @@ function Actions({
   );
 
   const { menuItems, handleMenuItemSelect } = useNftMenu({
-    nft, isViewMode, isNftBlacklisted, isNftWhitelisted, isNftInstalled, isNftAccentColorInstalled,
+    nft,
+    isViewMode,
+    dnsExpireInDays,
+    linkedAddress,
+    isNftBlacklisted,
+    isNftWhitelisted,
+    isNftInstalled,
+    isNftAccentColorInstalled,
   });
 
-  const handleSelect = useLastCallback((value: string) => {
-    if (value === 'send') {
+  const handleSelect = useLastCallback((value: NftMenuHandler) => {
+    if (SHOULD_CLOSE_VIEWER_HANDLERS.includes(value)) {
       onClose();
     }
 
@@ -81,8 +111,8 @@ function Actions({
       <DropdownMenu
         isOpen={isMenuOpen}
         items={menuItems}
-        menuPosition="top"
-        menuPositionHorizontal="right"
+        menuPositionY="top"
+        menuPositionX="right"
         shouldTranslateOptions
         onClose={closeMenu}
         className="component-theme-dark"
@@ -108,14 +138,23 @@ export default memo(withGlobal<OwnProps>((global, { mediaId }): StateProps => {
 
   if (!mediaId || mediaType !== MediaType.Nft) return { isViewMode };
 
-  const { byAddress } = selectCurrentAccountState(global)?.nfts || {};
+  const { byAddress, dnsExpiration } = selectCurrentAccountState(global)?.nfts || {};
   const nft = byAddress?.[mediaId];
   if (!nft) return { isViewMode };
 
   const { blacklistedNftAddresses, whitelistedNftAddresses } = selectCurrentAccountState(global) || {};
   const { cardBackgroundNft, accentColorNft } = selectCurrentAccountSettings(global) || {};
+  const tonDnsExpiration = getTonDnsExpirationDate(nft, dnsExpiration);
+  const linkedAddress = selectTonDnsLinkedAddress(global, nft);
 
   return {
-    nft, blacklistedNftAddresses, whitelistedNftAddresses, cardBackgroundNft, accentColorNft, isViewMode,
+    nft,
+    tonDnsExpiration,
+    blacklistedNftAddresses,
+    whitelistedNftAddresses,
+    cardBackgroundNft,
+    accentColorNft,
+    isViewMode,
+    linkedAddress,
   };
 })(Actions));

@@ -9,6 +9,7 @@ import defaultLangPackJson from '../i18n/en.json';
 import * as cacheApi from './cacheApi';
 import { createCallbackManager } from './callbacks';
 import { formatNumber } from './formatNumber';
+import { escapeStringRegexp } from './regex';
 import { DEFAULT_LANG_CODE } from './windowEnvironment';
 
 const defaultLangPack: LangPack = defaultLangPackJson;
@@ -34,19 +35,29 @@ export { addCallback, removeCallback };
 const SUBSTITUTION_REGEX = /%\d?\$?[sdf@]/g;
 const PLURAL_OPTIONS = ['value', 'zeroValue', 'oneValue', 'twoValue', 'fewValue', 'manyValue', 'otherValue'] as const;
 // Some rules edited from https://github.com/eemeli/make-plural/blob/master/packages/plurals/cardinals.js
+// de - zeroValue, oneValue, otherValue
+// en - zeroValue, oneValue, otherValue
+// es - zeroValue, oneValue, otherValue
+// pl - zeroValue, oneValue, fewValue, manyValue
+// ru - zeroValue, oneValue, fewValue, manyValue
+// th - zeroValue, otherValue
+// tr - zeroValue, oneValue, otherValue
+// uk - zeroValue, oneValue, fewValue, manyValue
+// zh-Hans - zeroValue, otherValue
+// zh-Hant - zeroValue, otherValue
 const PLURAL_RULES = {
-  /* eslint-disable max-len */
-  de: (n: number) => (n !== 1 ? 6 : 2),
-  en: (n: number) => (n !== 1 ? 6 : 2),
-  es: (n: number) => (n !== 1 ? 6 : 2),
-  pl: (n: number) => (n === 1 ? 2 : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 4 : 5),
-  ru: (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 2 : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 4 : 5),
-  th: () => 6,
-  tr: (n: number) => (n > 1 ? 6 : 2),
-  uk: (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 2 : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 4 : 5),
-  'zh-Hans': () => 6,
-  'zh-Hant': () => 6,
-  /* eslint-enable max-len */
+  /* eslint-disable @stylistic/max-len */
+  de: (n: number) => (n === 0 ? 1 : (n !== 1 ? 6 : 2)),
+  en: (n: number) => (n === 0 ? 1 : (n !== 1 ? 6 : 2)),
+  es: (n: number) => (n === 0 ? 1 : (n !== 1 ? 6 : 2)),
+  pl: (n: number) => (n === 0 ? 1 : (n === 1 ? 2 : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 4 : 5)),
+  ru: (n: number) => (n === 0 ? 1 : (n % 10 === 1 && n % 100 !== 11 ? 2 : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 4 : 5)),
+  th: (n: number) => (n === 0 ? 1 : 6),
+  tr: (n: number) => (n === 0 ? 1 : (n > 1 ? 6 : 2)),
+  uk: (n: number) => (n === 0 ? 1 : (n % 10 === 1 && n % 100 !== 11 ? 2 : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 4 : 5)),
+  'zh-Hans': (n: number) => (n === 0 ? 1 : 6),
+  'zh-Hant': (n: number) => (n === 0 ? 1 : 6),
+  /* eslint-enable @stylistic/max-len */
 };
 const cache = new Map<string, string>();
 let langPack: LangPack | undefined;
@@ -72,7 +83,6 @@ function createLangFn() {
   }) as LangFn;
 }
 
-// eslint-disable-next-line import/no-mutable-exports
 export let getTranslation: LangFn = createLangFn();
 
 export async function setLanguage(langCode: LangCode, callback?: NoneToVoidFunction) {
@@ -161,45 +171,50 @@ function processTemplate(template: string, value: any) {
   }, initialValue || '');
 }
 
-function processTemplateJsx(template: string, value: Record<string, TeactNode>): TeactNode[] {
-  const parts = template.split('%');
-  const processedParts: TeactNode[] = [];
-  let currentString = '';
+// Export a function for testing purposes
+export function processTemplateJsx(template: string, value: Record<string, TeactNode>): TeactNode[] {
+  // Replace all primitive values (strings and numbers)
+  let processedTemplate = template;
+
+  Object.entries(value).forEach(([key, val]) => {
+    if (typeof val === 'string' || typeof val === 'number') {
+      processedTemplate = processedTemplate.replace(
+        new RegExp(`%${escapeStringRegexp(key)}%`, 'g'),
+        String(val),
+      );
+    }
+  });
+
+  // Check if there are any components
+  const hasComponents = Object.values(value).some((val) =>
+    typeof val !== 'string' && typeof val !== 'number',
+  );
+
+  // If no components, just process through renderText
+  if (!hasComponents) {
+    return renderText(processedTemplate);
+  }
+
+  // If there are components, process in parts
+  const parts = processedTemplate.split(/%(\w+)%/);
+  const result: TeactNode[] = [];
 
   for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-
-    // Check if the current part is a token (between % symbols)
-    if (i % 2 === 1) {
-      const valueNode = value[part];
-
-      if (valueNode) {
-        if (typeof valueNode === 'string') {
-          currentString += valueNode;
-        } else {
-          // If the value is a component, process the accumulated string and add the component
-          if (currentString) {
-            processedParts.push(...renderText(currentString));
-            currentString = '';
-          }
-          processedParts.push(valueNode);
-        }
-      } else {
-        // If the token is not found, keep it as is (e.g., %unknown_token%)
-        currentString += `%${part}%`;
+    if (i % 2 === 0) {
+      // Text part
+      if (parts[i]) {
+        result.push(...renderText(parts[i]));
       }
     } else {
-      // If the part is a text segment, append it to the current string
-      currentString += part;
+      // Token (between % symbols)
+      const tokenValue = value[parts[i]];
+      if (tokenValue !== undefined) {
+        result.push(tokenValue);
+      }
     }
   }
 
-  // Process any remaining text in the current string
-  if (currentString) {
-    processedParts.push(...renderText(currentString));
-  }
-
-  return processedParts;
+  return result;
 }
 
 function processTranslation(

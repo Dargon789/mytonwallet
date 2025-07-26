@@ -12,6 +12,7 @@ import type { CapacitorPlatform } from './platform';
 
 import { GLOBAL_STATE_CACHE_KEY } from '../../config';
 import { processDeeplink } from '../deeplink';
+import { logDebug } from '../logs';
 import { IS_DELEGATED_BOTTOM_SHEET, IS_IOS } from '../windowEnvironment';
 import * as storageMethods from '../windowProvider/methods';
 import { initNotificationsWithGlobal } from './notifications';
@@ -35,11 +36,13 @@ const IOS_SPLASH_SCREEN_HIDE_DELAY = 500;
 const IOS_SPLASH_SCREEN_HIDE_DURATION = 600;
 export const VIBRATE_SUCCESS_END_PAUSE_MS = 1300;
 
-let launchUrl: string | undefined;
 let isNativeBiometricAuthSupported = false;
 let isFaceIdAvailable = false;
 let isTouchIdAvailable = false;
 let statusBarHeight = 0;
+
+let capacitorAppLaunchDeeplinkProcessedAt = 0;
+const CAPACITOR_APP_URL_OPEN_EVENT_IGNORE_DELAY_MS = 500;
 
 function updateSafeAreaValues(safeAreaInsets: SafeAreaInsets) {
   for (const [key, value] of Object.entries(safeAreaInsets.insets)) {
@@ -74,7 +77,14 @@ export async function initCapacitor() {
   }
 
   void App.addListener('appUrlOpen', (event: URLOpenListenerEvent) => {
-    void processDeeplink(event.url);
+    // Prevent processing the same deeplink twice on cold start
+    // 1. `app.getLaunchUrl()` returns the deeplink
+    // 2. And the `appUrlOpen` event contains the same deeplink
+    if (Date.now() - capacitorAppLaunchDeeplinkProcessedAt > CAPACITOR_APP_URL_OPEN_EVENT_IGNORE_DELAY_MS) {
+      void processDeeplink(event.url);
+    } else {
+      logDebug(`[CAPACITOR] appUrlOpen event ignored`, event);
+    }
   });
 
   void App.addListener('backButton', ({ canGoBack }) => {
@@ -90,12 +100,16 @@ export async function initCapacitor() {
   await SafeArea.addListener('safeAreaChanged', (data) => {
     updateSafeAreaValues(data);
   });
+}
 
-  launchUrl = (await App.getLaunchUrl())?.url;
+export async function processCapacitorLaunchDeeplink() {
+  const launchUrl = (await App.getLaunchUrl())?.url;
 
   if (launchUrl) {
     void processDeeplink(launchUrl);
   }
+
+  capacitorAppLaunchDeeplinkProcessedAt = Date.now();
 }
 
 export async function initCapacitorWithGlobal(authConfig?: AuthConfig) {

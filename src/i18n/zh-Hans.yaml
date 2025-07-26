@@ -125,6 +125,7 @@ Hide Tiny Transfers: 隐藏小额转账
 Toggle Hide Tiny Transfers: 切换隐藏小额转账
 Network: 网络
 Developer Options: 开发者选项
+All Wallet Versions: 所有钱包版本
 Confirmation: 确认
 Signing Data: 签名数据
 Contract Initialization Data: 合约初始化数据
@@ -160,6 +161,7 @@ Received: 已收到
 Sent: 已发送
 $transaction_from: 从 %address%
 $transaction_to: 至 %address%
+$transaction_on: 上 %address%
 Wallet is not backed up: 钱包未备份
 Testnet Version: 测试网版本
 Error reading clipboard: 读取剪切板时出现错误
@@ -174,6 +176,13 @@ Incorrect address.: 地址错误。
 Paste: 粘贴
 Insufficient balance: 余额不足
 Insufficient Balance: 余额不足
+$seed_phrase_scam_warning: |
+  **警告！** 您最近导入了一个钱包，但钱包中余额不足以支付提取代币的手续费。
+
+  这类似一种常见的诈骗方式，诱使您用自己的资金支付手续费。
+
+  **请勿存入您自己的资金，否则可能遭受损失！** 在我们的%help_center_link%了解更多此类及其他诈骗方式。
+$help_center_prepositional: 知识库
 Optional: 选项
 $send_token_symbol: 发送 %1$s
 Is it all ok?: 确认全部正确?
@@ -602,6 +611,7 @@ Unfrozen: 解冻
 Missed: 错过了
 Frozen: 冷冻
 until %date%: 截至 %date%
+Until %date%: 截至 %date%
 "%volume% in %amount% parts": "%volume% 分成 %amount% 份"
 Unfreeze: 解冻
 Claim: 宣称
@@ -693,7 +703,7 @@ Best: 最佳
 Use Best Rate: 使用最佳汇率
 Switch to %dex_name%: 切换到 %dex_name%
 Built-in DEX Aggregator: 内置Dex聚合器
-Add tokens: 添加令牌
+Add Tokens: 添加令牌
 No tokens yet: 尚无代币
 $no_tokens_description: 从其他钱包接收代币，或者在设置中启用首选代币进行监控。
 Exchange Rate: 汇率
@@ -787,6 +797,9 @@ Bidding at NFT Auction: NFT 拍卖中出价
 NFT Bought: 已购买 NFT
 Buying NFT: 正在购买 NFT
 $buy_nft_action: 购买 NFT
+NFT Sold: 已售出 NFT
+Selling NFT: 正在出售 NFT
+$sell_nft_action: 出售 NFT
 Receiving: 接收中
 $receive_action: 接收
 Change Palette: 更改调色板
@@ -822,15 +835,91 @@ App will not ask for signature for %1$d minutes after last entry.: 应用程序�
 Remember for %1$d minutes: 记住 %1$d 分钟
 Preview: 预览
 $preview_not_guaranteed: 预览结果**不受保证**，且**可能被服务伪造**。
+Unverified Source: 未经验证的来源
+$reopen_in_iab: 为了您的安全，请在%browserButton%中重新打开此DApp。
+MyTonWallet Browser: MyTonWallet 浏览器
 Exit all wallets: 退出所有钱包
 Can't confirm?: 无法登录？
 $safe_staking_ethena_description1: 质押完全去中心化，由**Ethena官方**审计的流动性质押**智能合约**运营。
 $safe_staking_ethena_description2: 质押的USDe将用于Ethena的**交易和投资策略**，自动透明地产生收益。
-$safe_staking_ethena_description3: 您可以**随时提取**质押资产及收益，根据Ethena标准提现周期，资金将在**7天内**返还至您的账户。
+$safe_staking_ethena_description3: 您可随时**提取存款**及累计利息——根据Ethena标准提款周期，资金将在**7天**后返还至您的主账户。
 Unstake %amount%: 解除质押 %amount%
 Request Unstaking: 申请取消质押
 $unstaking_when_receive_ethena: 您将在 **7 天** 后收到已解除质押的存款。
 Coins have been unstaked!: 代币已解锁！
 Confirm Upgrading: 确认升级
 How does it work?: 它是如何运作的？
+Multisend: 批量发送
+Renew All: 全部续费
+Renew: 续费
+Renew Domain: 续费域名
+Renew Domains: 续费域名
+Some domains are about to expire: 部分域名即将到期
+$domain_expire: "**%domain%** 将于%days%到期"
 '%token% Staking': '%token% 质押'
+Add Tab: 添加标签页
+Remove Tab: 移除标签页
+Link Domain: 链接域名
+Domain Linked!: 域名已链接!
+Failed to process domain operation. Please try again.: 域名操作处理失败，请重试。
+$domains_amount %1$d:
+  zeroValue: 无域名
+  otherValue: "%1$d个域名"
+Stake: 质押
+Manage Tokens: 管理代币
+Claim Rewards: 领取奖励
+Configure DNS: 配置DNS
+Link to Wallet: 链接到钱包
+Change Wallet: 更改钱包
+Change Linked Wallet: 更改已链接钱包
+Domain has been renewed!: 域名已续费!
+Domains have been renewed!: 域名已成功续费!
+Linked Wallet: 已链接钱包
+Domain has been linked!: 域名已链接!
+Link: 链接
+Confirm Renewing: 确认续费
+Confirm Linking: 确认链接
+$domains_expire:
+  zeroValue: "没有域名将于%days%到期"
+  oneValue: "**%domain%个域名** 将于%days%到期"
+  otherValue: "**%domain%个域名** 将于%days%到期"
+$in_days:
+  zeroValue: "今天"
+  oneValue: "明天"
+  otherValue: "%1$d天后"
+$domain_was_expired: "**%domain%** 已过期"
+$domains_was_expired:
+  zeroValue: "没有域名过期"
+  oneValue: "**%domain%个域名** 已过期"
+  otherValue: "**%domain%个域名** 已过期"
+Reload: 重新加载
+Copy Link: 复制链接
+Check eligibility for max APY: 检查最大 APY 资格
+Check eligibility: 检查资格
+$expired_many: 已过期
+$expires_in %days%:
+  zeroValue: "将于%days%到期"
+  oneValue: "将于%days%到期"
+  otherValue: "将于%days%到期"
+Message: 消息
+Binary Data: 二进制数据
+The binary data content is unclear. Sign it only if you trust the service.: 二进制数据内容不明确。请仅在信任该服务的情况下签署。
+Cell Schema: 单元结构
+Cell Data: 单元数据
+Sign Data: 签署数据
+Please confirm signature on your Ledger: 请在您的Ledger上确认签名
+Utilities: 实用工具
+Games: 游戏
+Entertainment: 娱乐
+Toggle to landscape layout: 切换至横屏模式
+Toggle to portrait layout: 切换至竖屏模式
+Attributes: 属性
+Show All: 显示全部
+Description: 描述
+No additional data.: 无附加数据。
+Domain was copied!: 域名已复制！
+$storage_cleared_title: 应用程序存储已清除
+$storage_cleared_message: |
+  您的钱包数据因浏览器或磁盘空间问题而被清除。请从所有钱包中退出登录，然后使用您的助记词手动重新导入。
+
+  如需帮助，请联系%support_link%。

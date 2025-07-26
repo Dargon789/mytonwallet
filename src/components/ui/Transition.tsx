@@ -1,4 +1,4 @@
-import type { RefObject } from 'react';
+import type { ElementRef, TeactNode } from '../../lib/teact/teact';
 import React, { beginHeavyAnimation, useEffect, useLayoutEffect, useRef } from '../../lib/teact/teact';
 import { addExtraClass, removeExtraClass, setExtraStyles, toggleExtraClass } from '../../lib/teact/teact-dom';
 import { getGlobal } from '../../global';
@@ -21,9 +21,9 @@ type AnimationName = (
   | 'fade' | 'pushSlide' | 'reveal' | 'slideOptimized' | 'slideOptimizedRtl' | 'semiFade'
   | 'slideVertical' | 'slideVerticalFade' | 'slideFadeAndroid'
   );
-export type ChildrenFn = (isActive: boolean, isFrom: boolean, currentKey: number, activeKey: number) => React.ReactNode;
+export type ChildrenFn = (isActive: boolean, isFrom: boolean, currentKey: number, activeKey: number) => TeactNode;
 export type TransitionProps = {
-  ref?: RefObject<HTMLDivElement>;
+  ref?: ElementRef<HTMLDivElement>;
   activeKey: number;
   prevKey?: number;
   nextKey?: number;
@@ -44,7 +44,7 @@ export type TransitionProps = {
   onStop?: NoneToVoidFunction;
   onContainerClick?: NoneToVoidFunction;
   // Should be not a falsy value, otherwise some transitions will be delayed
-  children: React.ReactNode | ChildrenFn;
+  children: TeactNode | ChildrenFn;
 };
 
 const FALLBACK_ANIMATION_END = SECOND;
@@ -86,13 +86,12 @@ function Transition({
   const { animationLevel } = getGlobal().settings;
   const shouldDisableAnimation = animationLevel === ANIMATION_LEVEL_MIN;
 
-  // eslint-disable-next-line no-null/no-null
-  let containerRef = useRef<HTMLDivElement>(null);
+  let containerRef = useRef<HTMLDivElement>();
   if (ref) {
     containerRef = ref;
   }
 
-  const rendersRef = useRef<Record<number, React.ReactNode | ChildrenFn>>({});
+  const rendersRef = useRef<Record<number, TeactNode | ChildrenFn>>({});
   const prevActiveKey = usePrevious<any>(activeKey);
   const forceUpdate = useForceUpdate();
   const isAnimatingRef = useRef(false);

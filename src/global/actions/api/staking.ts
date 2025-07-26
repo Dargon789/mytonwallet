@@ -8,27 +8,41 @@ import { vibrateOnError, vibrateOnSuccess } from '../../../util/haptics';
 import { logDebugError } from '../../../util/logs';
 import { callActionInMain, callActionInNative } from '../../../util/multitab';
 import { pause } from '../../../util/schedulers';
+import { getIsActiveStakingState, getIsLongUnstake } from '../../../util/staking';
 import { IS_DELEGATED_BOTTOM_SHEET, IS_DELEGATING_BOTTOM_SHEET } from '../../../util/windowEnvironment';
 import { callApi } from '../../../api';
 import { ApiHardwareBlindSigningNotEnabled, ApiUserRejectsError } from '../../../api/errors';
 import { closeAllOverlays } from '../../helpers/misc';
-import { getIsActiveStakingState } from '../../helpers/staking';
 import { addActionHandler, getGlobal, setGlobal } from '../../index';
 import {
   clearCurrentStaking,
   clearIsPinAccepted,
+  resetHardware,
   setIsPinAccepted,
   updateAccountStaking,
   updateAccountState,
   updateCurrentStaking,
 } from '../../reducers';
-import { selectAccount, selectAccountStakingState, selectIsHardwareAccount } from '../../selectors';
+import { selectAccountStakingState, selectAccountStakingStatesBySlug, selectIsHardwareAccount } from '../../selectors';
 import { switchAccount } from './auth';
 
 const MODAL_CLOSING_DELAY = 50;
 
 addActionHandler('startStaking', (global, actions, payload) => {
   const isOpen = global.currentStaking.state !== StakingState.None;
+  const { tokenSlug } = payload || {};
+
+  if (tokenSlug) {
+    const stakingState = selectAccountStakingStatesBySlug(global, global.currentAccountId!)[tokenSlug];
+    if (stakingState) {
+      global = getGlobal();
+      global = updateAccountStaking(global, global.currentAccountId!, { stakingId: stakingState.id });
+      setGlobal(global);
+
+      global = getGlobal();
+    }
+  }
+
   if (IS_DELEGATED_BOTTOM_SHEET && !isOpen) {
     callActionInMain('startStaking', payload);
     return;
@@ -44,6 +58,16 @@ addActionHandler('startStaking', (global, actions, payload) => {
 
 addActionHandler('startUnstaking', (global, actions, payload) => {
   const isOpen = global.currentStaking.state !== StakingState.None;
+  const { stakingId } = payload || {};
+
+  if (stakingId) {
+    global = getGlobal();
+    global = updateAccountStaking(global, global.currentAccountId!, { stakingId });
+    setGlobal(global);
+
+    global = getGlobal();
+  }
+
   if (IS_DELEGATED_BOTTOM_SHEET && !isOpen) {
     callActionInMain('startUnstaking', payload);
     return;
@@ -65,12 +89,12 @@ addActionHandler('fetchStakingFee', async (global, actions, payload) => {
     return;
   }
 
-  const state = selectAccountStakingState(global, currentAccountId)!;
+  const state = selectAccountStakingState(global, currentAccountId);
 
   const result = await callApi(
     'checkStakeDraft',
     currentAccountId,
-    amount!,
+    amount,
     state,
   );
   if (!result || 'error' in result) {
@@ -94,7 +118,7 @@ addActionHandler('submitStakingInitial', async (global, actions, payload) => {
 
   setGlobal(updateCurrentStaking(global, { isLoading: true, error: undefined }));
 
-  const state = selectAccountStakingState(global, currentAccountId)!;
+  const state = selectAccountStakingState(global, currentAccountId);
 
   if (isUnstaking) {
     const result = await callApi('checkUnstakeDraft', currentAccountId, amount!, state);
@@ -106,8 +130,8 @@ addActionHandler('submitStakingInitial', async (global, actions, payload) => {
         global = updateCurrentStaking(global, { error: result.error });
       } else {
         if (selectIsHardwareAccount(global)) {
-          actions.resetHardwareWalletConnect();
-          global = updateCurrentStaking(getGlobal(), { state: StakingState.UnstakeConnectHardware });
+          global = resetHardware(global);
+          global = updateCurrentStaking(global, { state: StakingState.UnstakeConnectHardware });
         } else {
           global = updateCurrentStaking(global, { state: StakingState.UnstakePassword });
         }
@@ -134,10 +158,9 @@ addActionHandler('submitStakingInitial', async (global, actions, payload) => {
       if ('error' in result) {
         global = updateCurrentStaking(global, { error: result.error });
       } else {
-        const account = selectAccount(global, currentAccountId)!;
-        if (account.type === 'hardware') {
-          actions.resetHardwareWalletConnect();
-          global = updateCurrentStaking(getGlobal(), { state: StakingState.StakeConnectHardware });
+        if (selectIsHardwareAccount(global)) {
+          global = resetHardware(global);
+          global = updateCurrentStaking(global, { state: StakingState.StakeConnectHardware });
         } else {
           global = updateCurrentStaking(global, { state: StakingState.StakePassword });
         }
@@ -167,7 +190,7 @@ addActionHandler('submitStakingPassword', async (global, actions, payload) => {
 
   global = getGlobal();
 
-  const state = selectAccountStakingState(global, currentAccountId!)!;
+  const state = selectAccountStakingState(global, currentAccountId!);
 
   if (getDoesUsePinPad()) {
     global = setIsPinAccepted(global);
@@ -183,8 +206,6 @@ addActionHandler('submitStakingPassword', async (global, actions, payload) => {
   global = getGlobal();
 
   if (isUnstaking) {
-    const instantAvailable = global.stakingInfo?.liquid?.available;
-
     const unstakeAmount = state.type === 'nominators' ? state.balance : tokenAmount!;
     const result = await callApi(
       'submitUnstake',
@@ -195,11 +216,7 @@ addActionHandler('submitStakingPassword', async (global, actions, payload) => {
       getTonStakingFees(state.type).unstake.real,
     );
 
-    const isLongUnstakeRequested = Boolean(state.type === 'nominators' || (
-      state.type === 'liquid'
-      && instantAvailable
-      && instantAvailable < state.balance
-    ));
+    const isLongUnstakeRequested = getIsLongUnstake(state, unstakeAmount);
 
     global = getGlobal();
     global = updateAccountState(global, currentAccountId!, { isLongUnstakeRequested });
@@ -260,7 +277,7 @@ addActionHandler('submitStakingHardware', async (global, actions, payload) => {
   const { amount, tokenAmount } = global.currentStaking;
   const { currentAccountId } = global;
 
-  const state = selectAccountStakingState(global, currentAccountId!)!;
+  const state = selectAccountStakingState(global, currentAccountId!);
 
   global = updateCurrentStaking(global, {
     isLoading: true,
@@ -279,7 +296,6 @@ addActionHandler('submitStakingHardware', async (global, actions, payload) => {
 
   try {
     if (isUnstaking) {
-      const instantAvailable = global.stakingInfo?.liquid?.available;
       const stakingBalance = state.balance;
       const unstakeAmount = state.type === 'nominators' ? stakingBalance : tokenAmount!;
 
@@ -290,11 +306,7 @@ addActionHandler('submitStakingHardware', async (global, actions, payload) => {
         getTonStakingFees(state.type).unstake.real,
       );
 
-      const isLongUnstakeRequested = Boolean(state.type === 'nominators' || (
-        state.type === 'liquid'
-        && instantAvailable
-        && instantAvailable < stakingBalance
-      ));
+      const isLongUnstakeRequested = getIsLongUnstake(state, unstakeAmount);
 
       global = getGlobal();
       global = updateAccountState(global, currentAccountId!, { isLongUnstakeRequested });
@@ -367,9 +379,8 @@ addActionHandler('setStakingScreen', (global, actions, payload) => {
   setGlobal(updateCurrentStaking(global, { state }));
 });
 
-addActionHandler('fetchStakingHistory', async (global, actions, payload) => {
-  const { limit, offset } = payload ?? {};
-  const stakingHistory = await callApi('getStakingHistory', global.currentAccountId!, limit, offset);
+addActionHandler('fetchStakingHistory', async (global) => {
+  const stakingHistory = await callApi('getStakingHistory', global.currentAccountId!);
 
   if (!stakingHistory) {
     return;
@@ -430,17 +441,28 @@ addActionHandler('changeCurrentStaking', async (global, actions, { stakingId, sh
   }
 });
 
-addActionHandler('startStakingClaim', (global) => {
+addActionHandler('startStakingClaim', (global, actions, payload) => {
+  const { stakingId } = payload || {};
+
+  if (stakingId) {
+    global = getGlobal();
+    global = updateAccountStaking(global, global.currentAccountId!, { stakingId });
+    setGlobal(global);
+
+    global = getGlobal();
+  }
+
   if (IS_DELEGATED_BOTTOM_SHEET) {
-    callActionInMain('startStakingClaim');
+    callActionInMain('startStakingClaim', payload);
     return;
   }
 
-  const isHardware = selectIsHardwareAccount(global);
-
-  global = updateCurrentStaking(global, {
-    state: isHardware ? StakingState.ClaimConnectHardware : StakingState.ClaimPassword,
-  });
+  if (selectIsHardwareAccount(global)) {
+    global = resetHardware(global);
+    global = updateCurrentStaking(global, { state: StakingState.ClaimConnectHardware });
+  } else {
+    global = updateCurrentStaking(global, { state: StakingState.ClaimPassword });
+  }
   setGlobal(global);
 });
 
@@ -475,7 +497,7 @@ addActionHandler('submitStakingClaim', async (global, actions, { password }) => 
 
   global = getGlobal();
 
-  const stakingState = selectAccountStakingState(global, accountId)! as ApiEthenaStakingState | ApiJettonStakingState;
+  const stakingState = selectAccountStakingState(global, accountId) as ApiEthenaStakingState | ApiJettonStakingState;
   const isEthenaStaking = stakingState.type === 'ethena';
 
   const result = await callApi(
@@ -528,7 +550,7 @@ addActionHandler('submitStakingClaimHardware', async (global, actions) => {
   global = getGlobal();
 
   const accountId = global.currentAccountId!;
-  const stakingState = selectAccountStakingState(global, accountId)! as ApiJettonStakingState | ApiEthenaStakingState;
+  const stakingState = selectAccountStakingState(global, accountId) as ApiJettonStakingState | ApiEthenaStakingState;
   const isEthenaStaking = stakingState.type === 'ethena';
 
   let result: string | { error: ApiTransactionError } | undefined;

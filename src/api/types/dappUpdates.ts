@@ -20,13 +20,13 @@ export type ApiSiteUpdateDeeplinkHook = {
 
 export type ApiSiteDisconnect = {
   type: 'disconnectSite';
-  origin: string;
+  url: string;
 };
 
 export type ApiSiteUpdate = ApiLegacyDappUpdate
-| ApiSiteUpdateTonMagic
-| ApiSiteUpdateDeeplinkHook
-| ApiSiteDisconnect;
+  | ApiSiteUpdateTonMagic
+  | ApiSiteUpdateDeeplinkHook
+  | ApiSiteDisconnect;
 
 export type ApiLegacyDappUpdate = ApiDappUpdateBalance | ApiDappUpdateAccounts;
 

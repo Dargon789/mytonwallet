@@ -31,8 +31,8 @@ import {
 } from '../util/iteratees';
 import { clearPoisoningCache, updatePoisoningCache } from '../util/poisoningHash';
 import { onBeforeUnload, throttle } from '../util/schedulers';
+import { getIsActiveStakingState } from '../util/staking';
 import { IS_ELECTRON } from '../util/windowEnvironment';
-import { getIsActiveStakingState } from './helpers/staking';
 import { addActionHandler, getGlobal } from './index';
 import { INITIAL_STATE, STATE_VERSION } from './initialState';
 import { selectAccountTokens } from './selectors';
@@ -210,7 +210,7 @@ function migrateCache(cached: GlobalState, initialState: GlobalState) {
     if (cached.byAccountId) {
       Object.values(cached.byAccountId).forEach((accountState) => {
         if (accountState.balances?.bySlug) {
-          accountState.balances.bySlug = pick(accountState.balances!.bySlug, ['toncoin']);
+          accountState.balances.bySlug = pick(accountState.balances.bySlug, ['toncoin']);
         }
         if ((accountState as any).transactions) {
           delete (accountState as any).transactions;
@@ -336,7 +336,6 @@ function migrateCache(cached: GlobalState, initialState: GlobalState) {
 
         const { balances } = cached.byAccountId[accountId];
         if (balances) {
-          // eslint-disable-next-line @typescript-eslint/no-loop-func
           balances.bySlug = Object.entries(balances.bySlug).reduce((acc, [slug, balance]) => {
             acc[slug] = BigInt(balance);
             return acc;
@@ -497,9 +496,20 @@ function migrateCache(cached: GlobalState, initialState: GlobalState) {
     cached.stateVersion = 38;
   }
 
-  if (cached.stateVersion === 38) {
+  if (cached.stateVersion >= 38 && cached.stateVersion <= 41) {
     clearActivities();
-    cached.stateVersion = 39;
+    cached.stateVersion = 42;
+  }
+
+  if (cached.stateVersion === 41) {
+    for (const accountId of Object.keys(cached.byAccountId)) {
+      const accountState = cached.byAccountId[accountId];
+      if ((accountState as any).dappLastOpenedDatesByOrigin) {
+        accountState.dappLastOpenedDatesByUrl = (accountState as any).dappLastOpenedDatesByOrigin;
+        delete (accountState as any).dappLastOpenedDatesByOrigin;
+      }
+    }
+    cached.stateVersion = 42;
   }
 
   // When adding migration here, increase `STATE_VERSION`
@@ -560,10 +570,10 @@ function updateCache(force?: boolean) {
 
   const global = getGlobal();
 
+  const accountsById = global.accounts?.byId || {};
   const reducedGlobal: GlobalState = {
     ...INITIAL_STATE,
     ...pick(global, [
-      'settings',
       'currentAccountId',
       'stateVersion',
       'restrictions',
@@ -573,9 +583,13 @@ function updateCache(force?: boolean) {
       'stakingDefault',
     ]),
     accounts: {
-      byId: global.accounts?.byId || {},
+      byId: accountsById,
     },
     byAccountId: reduceByAccountId(global),
+    settings: {
+      ...global.settings,
+      byAccountId: pick(global.settings.byAccountId, Object.keys(accountsById)),
+    },
   };
 
   const usedTokenSlugs = getUsedTokenSlugs(reducedGlobal);
@@ -590,6 +604,10 @@ function updateCache(force?: boolean) {
 
 function reduceByAccountId(global: GlobalState) {
   return Object.entries(global.byAccountId).reduce((acc, [accountId, state]) => {
+    if (!global.accounts?.byId[accountId]) {
+      return acc;
+    }
+
     acc[accountId] = pick(state, [
       'isBackupRequired',
       'currentTokenSlug',
@@ -601,9 +619,16 @@ function reduceByAccountId(global: GlobalState) {
       'browserHistory',
       'blacklistedNftAddresses',
       'whitelistedNftAddresses',
-      'dappLastOpenedDatesByOrigin',
+      'dappLastOpenedDatesByUrl',
       'dapps',
     ]);
+
+    if (state.nfts?.collectionTabs) {
+      acc[accountId].nfts = {
+        collectionTabs: state.nfts.collectionTabs,
+        wasTelegramGiftsAutoAdded: state.nfts.wasTelegramGiftsAutoAdded,
+      };
+    }
 
     const accountTokens = selectAccountTokens(global, accountId);
     acc[accountId].balances = reduceAccountBalances(state.balances, accountTokens);

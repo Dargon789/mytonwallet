@@ -12,9 +12,7 @@ import { getAccountTitle } from '../../../../util/account';
 import buildClassName from '../../../../util/buildClassName';
 import captureEscKeyListener from '../../../../util/captureEscKeyListener';
 import { vibrate } from '../../../../util/haptics';
-import { getTelegramApp } from '../../../../util/telegram';
 import trapFocus from '../../../../util/trapFocus';
-import { getIsMobileTelegramApp, IS_IOS } from '../../../../util/windowEnvironment';
 
 import useEffectWithPrevDeps from '../../../../hooks/useEffectWithPrevDeps';
 import useFlag from '../../../../hooks/useFlag';
@@ -26,6 +24,7 @@ import useShowTransition from '../../../../hooks/useShowTransition';
 
 import Button from '../../../ui/Button';
 import AccountButton from './AccountButton';
+import CardActions from './CardActions';
 
 import styles from './AccountSelector.module.scss';
 
@@ -47,9 +46,6 @@ interface StateProps {
   accounts?: Record<string, Account>;
   shouldForceAccountEdit?: boolean;
   currentWalletVersion?: ApiTonWalletVersion;
-  isAppLockEnabled?: boolean;
-  isFullscreen?: boolean;
-  isSensitiveDataHidden?: boolean;
   settingsByAccountId?: Record<string, AccountSettings>;
 }
 
@@ -70,31 +66,25 @@ function AccountSelector({
   isInsideSticky,
   shouldForceAccountEdit,
   currentWalletVersion,
-  isAppLockEnabled,
-  isFullscreen,
-  isSensitiveDataHidden,
   settingsByAccountId,
 }: OwnProps & StateProps) {
   const {
     switchAccount,
     renameAccount,
     openAddAccountModal,
-    openSettings,
-    requestOpenQrScanner,
     openSettingsWithState,
-    setIsManualLockActive,
-    setIsSensitiveDataHidden,
   } = getActions();
 
-  // eslint-disable-next-line no-null/no-null
-  const modalRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line no-null/no-null
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>();
 
   const lang = useLang();
   const [isOpen, openAccountSelector, closeAccountSelector] = useFlag(false);
   const [isEdit, openEdit, closeEdit] = useFlag(shouldForceAccountEdit);
-  const { shouldRender, transitionClassNames } = useShowTransition(isOpen && !isEdit, undefined, undefined, 'slow');
+  const { shouldRender, ref: containerRef } = useShowTransition({
+    isOpen: isOpen && !isEdit,
+    className: 'slow',
+    withShouldRender: true,
+  });
   const [inputValue, setInputValue] = useState<string>(currentAccount?.title || '');
 
   const isQrScannerSupported = useQrScannerSupport() && !isViewMode;
@@ -129,7 +119,10 @@ function AccountSelector({
     () => (isEdit ? captureEscKeyListener(closeEdit) : undefined),
     [closeEdit, isEdit],
   );
-  useEffect(() => (shouldRender && modalRef.current ? trapFocus(modalRef.current) : undefined), [shouldRender]);
+  useEffect(
+    () => (shouldRender && containerRef.current ? trapFocus(containerRef.current) : undefined),
+    [containerRef, shouldRender],
+  );
   useFocusAfterAnimation(inputRef, !isEdit);
   useEffect(() => {
     if (isEdit) {
@@ -140,10 +133,6 @@ function AccountSelector({
   const handleOpenAccountSelector = () => {
     openAccountSelector();
   };
-
-  const handleSensitiveDataToggle = useLastCallback(() => {
-    setIsSensitiveDataHidden({ isHidden: !isSensitiveDataHidden });
-  });
 
   const handleSwitchAccount = useLastCallback((accountId: string) => {
     void vibrate();
@@ -163,7 +152,9 @@ function AccountSelector({
     openAddAccountModal();
   });
   useEffect(() => {
-    if (isEdit && isInsideSticky) { handleSaveClick(); }
+    if (isEdit && isInsideSticky) {
+      handleSaveClick();
+    }
   }, [isEdit, isInsideSticky]);
 
   const handleAddV5WalletClick = useLastCallback(() => {
@@ -178,29 +169,6 @@ function AccountSelector({
     } else {
       setInputValue(e.currentTarget.value);
     }
-  });
-
-  const handleQrScanClick = useLastCallback(() => {
-    if (IS_IOS && getIsMobileTelegramApp()) {
-      // eslint-disable-next-line no-alert
-      alert('Scanning is temporarily not available');
-      return;
-    }
-
-    requestOpenQrScanner();
-    closeAccountSelector();
-  });
-
-  const handleFullscreenToggle = useLastCallback(() => {
-    if (isFullscreen) {
-      getTelegramApp()?.exitFullscreen();
-    } else {
-      getTelegramApp()?.requestFullscreen();
-    }
-  });
-
-  const handleManualLock = useLastCallback(() => {
-    setIsManualLockActive({ isActive: true, shouldHideBiometrics: true });
   });
 
   function renderButton(
@@ -230,7 +198,6 @@ function AccountSelector({
 
   const fullClassName = buildClassName(
     styles.container,
-    transitionClassNames,
     accountSelectorClassName,
   );
   const accountTitleClassName = buildClassName(
@@ -251,68 +218,13 @@ function AccountSelector({
             <i className={buildClassName('icon icon-caret-down', styles.arrowIcon)} aria-hidden />
           )}
         </div>
-        <div className={buildClassName(styles.menuButtons, isInsideSticky && styles.inStickyCard)}>
-          {!isInsideSticky && (
-            <Button
-              className={buildClassName(styles.menuButton, menuButtonClassName)}
-              isText
-              isSimple
-              kind="transparent"
-              ariaLabel={lang(isSensitiveDataHidden ? 'Show Sensitive Data' : 'Hide Sensitive Data')}
-              onClick={handleSensitiveDataToggle}
-            >
-              <i className={isSensitiveDataHidden ? 'icon-eye' : 'icon-eye-closed'} aria-hidden />
-            </Button>
-          )}
-          {isAppLockEnabled && (
-            <Button
-              className={buildClassName(styles.menuButton, menuButtonClassName)}
-              isText
-              isSimple
-              kind="transparent"
-              ariaLabel={lang('App Lock')}
-              onClick={handleManualLock}
-            >
-              <i className="icon-manual-lock" aria-hidden />
-            </Button>
-          )}
-          {!noSettingsOrQrSupported && (
-            <Button
-              className={buildClassName(styles.menuButton, menuButtonClassName)}
-              isText
-              isSimple
-              kind="transparent"
-              ariaLabel={lang('Main menu')}
-              onClick={openSettings}
-            >
-              <i className="icon-cog" aria-hidden />
-            </Button>
-          )}
-          {isQrScannerSupported && (
-            <Button
-              className={buildClassName(styles.menuButton, menuButtonClassName)}
-              isText
-              isSimple
-              kind="transparent"
-              ariaLabel={lang('Scan QR Code')}
-              onClick={handleQrScanClick}
-            >
-              <i className="icon-qr-scanner" aria-hidden />
-            </Button>
-          )}
-          {getIsMobileTelegramApp() && (
-            <Button
-              className={buildClassName(styles.menuButton, menuButtonClassName)}
-              isText
-              isSimple
-              kind="transparent"
-              ariaLabel={lang('Toggle fullscreen')}
-              onClick={handleFullscreenToggle}
-            >
-              <i className={isFullscreen ? 'icon-fullscreen-exit' : 'icon-fullscreen'} aria-hidden />
-            </Button>
-          )}
-        </div>
+        <CardActions
+          isInsideSticky={isInsideSticky}
+          isQrScannerSupported={isQrScannerSupported}
+          noSettingsOrQrSupported={noSettingsOrQrSupported}
+          menuButtonClassName={menuButtonClassName}
+          onQrScanClick={closeAccountSelector}
+        />
       </>
     );
   }
@@ -340,7 +252,7 @@ function AccountSelector({
 
     return (
       <div
-        ref={modalRef}
+        ref={containerRef}
         className={fullClassName}
         tabIndex={-1}
         role="dialog"
@@ -380,13 +292,10 @@ function AccountSelector({
 export default memo(withGlobal<OwnProps>(
   (global): StateProps => {
     const {
-      isFullscreen,
       shouldForceAccountEdit,
       walletVersions,
       settings: {
-        isAppLockEnabled,
         byAccountId: settingsByAccountId,
-        isSensitiveDataHidden,
       },
     } = global;
 
@@ -401,10 +310,7 @@ export default memo(withGlobal<OwnProps>(
       accounts,
       shouldForceAccountEdit,
       currentWalletVersion: walletVersions?.currentVersion,
-      isAppLockEnabled: isAppLockEnabled && !isViewMode,
       settingsByAccountId,
-      isFullscreen,
-      isSensitiveDataHidden,
       isViewMode,
     };
   },

@@ -29,13 +29,13 @@ export default function useVesting(
   const amount = useMemo(() => {
     if (!hasVesting) return undefined;
 
-    return calcVestingAmountByStatus(vesting!, ['frozen', 'ready']);
+    return calcVestingAmountByStatus(vesting, ['frozen', 'ready']);
   }, [hasVesting, vesting]);
 
   const unfreezeEndDate = useMemo(() => {
     if (!hasVesting) return undefined;
 
-    for (const { parts } of vesting!) {
+    for (const { parts } of vesting) {
       for (const part of parts) {
         if (part.status === 'ready') {
           return new Date(part.timeEnd).getTime();
@@ -48,8 +48,11 @@ export default function useVesting(
 
   const {
     shouldRender,
-    transitionClassNames,
-  } = useShowTransition(Boolean(hasVesting && isMycoinLoaded && userMycoin && amount !== '0'));
+    ref,
+  } = useShowTransition<HTMLButtonElement>({
+    isOpen: Boolean(hasVesting && isMycoinLoaded && userMycoin && amount !== '0'),
+    withShouldRender: true,
+  });
 
   const onVestingTokenClick = useLastCallback(() => {
     openVestingModal();
@@ -57,7 +60,7 @@ export default function useVesting(
 
   return {
     shouldRender,
-    transitionClassNames,
+    ref,
     amount,
     vestingStatus: unfreezeEndDate ? 'readyToUnfreeze' as const : 'frozen' as const,
     unfreezeEndDate,

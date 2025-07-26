@@ -1,5 +1,5 @@
+import { Dialog } from '@capacitor/dialog';
 import { AndroidSettings, IOSSettings, NativeSettings } from 'capacitor-native-settings';
-import { Dialog } from 'native-dialog';
 import React, {
   memo, useEffect, useLayoutEffect, useState,
 } from '../../lib/teact/teact';
@@ -145,9 +145,9 @@ function SettingsSecurity({
     handleScroll: handleContentScroll,
   } = useScrolledState();
 
-  const [currentSlide, setCurrentSlide] = useState<number>(SLIDES.password);
+  const [currentSlide, setCurrentSlide] = useState<SLIDES>(SLIDES.password);
   const previousSlide = usePrevious(currentSlide);
-  const [nextKey, setNextKey] = useState<number | undefined>(SLIDES.settings);
+  const [nextKey, setNextKey] = useState<SLIDES | undefined>(SLIDES.settings);
   const [passwordError, setPasswordError] = useState<string>();
   const [password, setPassword] = useState<string>();
   const [backupType, setBackupType] = useState<'key' | 'words' | undefined>(undefined);
@@ -236,7 +236,7 @@ function SettingsSecurity({
     setInMemoryPassword({ password: enteredPassword });
     if (isNativeBiometricAuthEnabled) {
       disableNativeBiometrics();
-      await enableNativeBiometrics({ password: enteredPassword });
+      enableNativeBiometrics({ password: enteredPassword });
     }
     if (getDoesUsePinPad()) {
       openSettingsSlide();
@@ -309,8 +309,8 @@ function SettingsSecurity({
     setAppLockValue({ value: autolockValue, isEnabled: !isAppLockEnabled });
   });
 
-  const handleAutolockChange = useLastCallback((value: string) => {
-    setAppLockValue({ value: value as AutolockValueType, isEnabled: true });
+  const handleAutolockChange = useLastCallback((value: AutolockValueType) => {
+    setAppLockValue({ value, isEnabled: true });
   });
 
   const handleAutoConfirmToggle = useLastCallback(() => {
@@ -352,7 +352,7 @@ function SettingsSecurity({
   useEffect(() => {
     if (!password) return;
 
-    void callApi('fetchMnemonic', currentAccountId!, password!).then((mnemonic) => {
+    void callApi('fetchMnemonic', currentAccountId, password).then((mnemonic) => {
       setHasMnemonicWallet(Boolean(mnemonic && !isMnemonicPrivateKey(mnemonic)));
     });
   }, [hasMnemonicWallet, currentAccountId, password]);
@@ -454,11 +454,11 @@ function SettingsSecurity({
                 <Collapsible isShown={!!isAppLockEnabled}>
                   <Dropdown
                     label={lang('Auto-Lock')}
-                    items={AUTOLOCK_OPTIONS_LIST as unknown as DropdownItem[]}
+                    items={AUTOLOCK_OPTIONS_LIST as unknown as DropdownItem<AutolockValueType>[]}
                     selectedValue={autolockValue}
                     theme="light"
                     shouldTranslateOptions
-                    className={buildClassName(styles.item, styles.item_small)}
+                    className={buildClassName(styles.item, styles.item_small, styles.itemAutoLock)}
                     onChange={handleAutolockChange}
                   />
                 </Collapsible>
@@ -522,15 +522,14 @@ function SettingsSecurity({
     );
   }
 
-  // eslint-disable-next-line consistent-return
-  function renderContent(isSlideActive: boolean, isFrom: boolean, currentKey: number) {
+  function renderContent(isSlideActive: boolean, isFrom: boolean, currentKey: SLIDES) {
     switch (currentKey) {
       case SLIDES.settings:
         return renderSettings();
       case SLIDES.password:
         if (getHasInMemoryPassword()) {
           setCurrentSlide(SLIDES.settings);
-          void getInMemoryPassword().then((memoizedPassword) => setPassword(memoizedPassword!));
+          void getInMemoryPassword().then((memoizedPassword) => setPassword(memoizedPassword));
 
           return undefined;
         }
@@ -582,7 +581,12 @@ function SettingsSecurity({
                 <span className={styles.headerTitle}>{lang('Change Password')}</span>
               </div>
             )}
-            <div className={buildClassName(modalStyles.transitionContent, styles.content)}>
+            <div className={buildClassName(
+              modalStyles.transitionContent,
+              styles.content,
+              isInsideModal && styles.contentInModal,
+            )}
+            >
               <AnimatedIconWithPreview
                 tgsUrl={ANIMATED_STICKERS_PATHS.guard}
                 previewUrl={ANIMATED_STICKERS_PATHS.guardPreview}
@@ -768,7 +772,7 @@ function SettingsSecurity({
             isBackupSlideActive={currentKey === SLIDES.secretWords || currentKey === SLIDES.safetyRules}
             isInsideModal={isInsideModal}
             enteredPassword={password}
-            currentAccountId={currentAccountId!}
+            currentAccountId={currentAccountId}
             onBackClick={openBackupPage}
             onSubmit={onSettingsClose}
           />
@@ -780,7 +784,7 @@ function SettingsSecurity({
             isBackupSlideActive={currentKey === SLIDES.privateKey || currentKey === SLIDES.safetyRules}
             isInsideModal={isInsideModal}
             enteredPassword={password}
-            currentAccountId={currentAccountId!}
+            currentAccountId={currentAccountId}
             onBackClick={openBackupPage}
             onSubmit={onSettingsClose}
           />

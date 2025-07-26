@@ -1,4 +1,4 @@
-import type { FC } from '../../lib/teact/teact';
+import type { FC, TeactNode } from '../../lib/teact/teact';
 import React, {
   memo, useEffect, useRef,
 } from '../../lib/teact/teact';
@@ -20,7 +20,7 @@ import Portal from './Portal';
 import styles from './IconWithTooltip.module.scss';
 
 type OwnProps = {
-  message: React.ReactNode;
+  message: TeactNode;
   emoji?: EmojiIcon;
   size?: 'small' | 'medium';
   type?: 'hint' | 'warning';
@@ -41,16 +41,17 @@ const IconWithTooltip: FC<OwnProps> = ({
   tooltipClassName,
 }) => {
   const [isOpen, open, close] = useFlag();
-  const { transitionClassNames, shouldRender } = useShowTransition(isOpen);
+  const { shouldRender, ref: tooltipContainerRef } = useShowTransition({
+    isOpen,
+    withShouldRender: true,
+  });
   const colorClassName = type === 'warning' && styles[`color-${type}`];
 
-  // eslint-disable-next-line no-null/no-null
-  const iconRef = useRef<HTMLDivElement | null>(null);
-  // eslint-disable-next-line no-null/no-null
-  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const iconRef = useRef<HTMLDivElement>();
+  const tooltipRef = useRef<HTMLDivElement>();
 
-  const tooltipStyle = useRef<string | undefined>();
-  const arrowStyle = useRef<string | undefined>();
+  const tooltipStyle = useRef<string>();
+  const arrowStyle = useRef<string>();
 
   const randomTooltipKey = useUniqueId();
 
@@ -131,7 +132,8 @@ const IconWithTooltip: FC<OwnProps> = ({
       {shouldRender && (
         <Portal>
           <div
-            className={buildClassName(styles.container, transitionClassNames)}
+            ref={tooltipContainerRef}
+            className={styles.container}
             onClick={stopEvent}
             style={tooltipStyle.current}
           >

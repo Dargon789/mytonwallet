@@ -130,6 +130,7 @@ Hide Tiny Transfers: Ukryj małe transfery
 Toggle Hide Tiny Transfers: Przełącz Ukryj drobne transfery
 Network: Sieć
 Developer Options: Opcje dla deweloperów
+All Wallet Versions: Wszystkie wersje portfela
 Confirmation: Potwierdzenie
 Signing Data: Dane do Podpisu
 Contract Initialization Data: Dane Inicjalizacji Kontraktu
@@ -165,6 +166,7 @@ Received: Otrzymano
 Sent: Wysłany
 $transaction_from: od %address%
 $transaction_to: do %address%
+$transaction_on: na %address%
 Wallet is not backed up: Portfel nie ma kopii zapasowej
 Testnet Version: Wersja Testnet
 Error reading clipboard: Błąd odczytu schowka
@@ -179,6 +181,13 @@ Incorrect address.: Nieprawidłowy adres.
 Paste: Pasta
 Insufficient balance: Niewystarczająca równowaga
 Insufficient Balance: Niewystarczająca równowaga
+$seed_phrase_scam_warning: |
+  **Uwaga!** Niedawno zaimportowałeś portfel, na którym nie ma wystarczających środków do pokrycia opłat za wypłatę tokenów.
+
+  Jest to podobne do popularnego rodzaju oszustwa, gdzie namawia się Cię do wpłaty własnych środków na pokrycie opłat.
+
+  **Nie wpłacaj swoich środków, możesz je stracić!** Dowiedz się więcej o tym i innych rodzajach oszustw w naszej %help_center_link%.
+$help_center_prepositional: Bazie Wiedzy
 Optional: Opcjonalnie
 $send_token_symbol: Wyślij %1$s
 Is it all ok?: Czy wszystko jest w porządku?
@@ -269,6 +278,7 @@ $dapp_can_view_balance: "%dappname% będzie mógł zobaczyć adres portfela i sa
 Send Transaction: Wyślij transakcję
 Payload: Ładunek
 $many_transactions:
+  zeroValue: Brak transakcji
   oneValue: "%1$d transakcja"
   fewValue: "%1$d transakcje"
   manyValue: "%1$d transakcji"
@@ -616,6 +626,7 @@ Unfrozen: Niezamrożone
 Missed: Pominięty
 Frozen: Mrożony
 until %date%: do %date%
+Until %date%: Do %date%
 "%volume% in %amount% parts": "%volume% w %amount% częściach"
 Unfreeze: Odmrozić
 Claim: Prawo
@@ -707,7 +718,7 @@ Best: Najlepszy
 Use Best Rate: Użyj najlepszego kursu
 Switch to %dex_name%: Przełącz na %dex_name%
 Built-in DEX Aggregator: Wbudowany agregator DEX
-Add tokens: Dodaj tokeny
+Add Tokens: Dodaj tokeny
 No tokens yet: Brak tokenów
 $no_tokens_description: Otrzymaj tokeny z innego portfela lub po prostu włącz preferowane tokeny w ustawieniach, aby je monitorować.
 Exchange Rate: Kurs wymiany
@@ -801,6 +812,9 @@ Bidding at NFT Auction: Licytacja w aukcji NFT
 NFT Bought: NFT kupiony
 Buying NFT: Kupowanie NFT
 $buy_nft_action: Zakup NFT
+NFT Sold: NFT sprzedane
+Selling NFT: Sprzedaż NFT
+$sell_nft_action: Sprzedaż NFT
 Receiving: Otrzymywanie
 $receive_action: Odbieranie
 Change Palette: Zmień paletę
@@ -836,15 +850,97 @@ App will not ask for signature for %1$d minutes after last entry.: Aplikacja nie
 Remember for %1$d minutes: Zapamiętaj na %1$d minut
 Preview: Podgląd
 $preview_not_guaranteed: Wynik podglądu **nie jest gwarantowany **i **może zostać sfałszowany **przez usługę.
+Unverified Source: Niezweryfikowane źródło
+$reopen_in_iab: Dla Twojego bezpieczeństwa otwórz tę aplikację ponownie w %browserButton%.
+MyTonWallet Browser: przeglądarce MyTonWallet
 Exit all wallets: Wyjdź ze wszystkich portfeli
 Can't confirm?: Nie możesz się zalogować?
 $safe_staking_ethena_description1: Staking jest w pełni zdecentralizowany i obsługiwany przez **oficjalne**, audytowane **inteligentne kontrakty** Etheny do stakingu płynnego.
 $safe_staking_ethena_description2: Zdeponowany USDe jest wykorzystywany w **strategiach handlowych i inwestycyjnych** Etheny w celu automatycznego i przejrzystego generowania nagród.
-$safe_staking_ethena_description3: Możesz **wypłacić** swój stake z nagrodami w dowolnym momencie, a zostanie on zwrócony na Twoje konto **w ciągu 7 dni**, zgodnie ze standardowym okresem wypłat Etheny.
+$safe_staking_ethena_description3: Możesz **wypłacić depozyt** wraz z naliczonymi odsetkami w dowolnym momencie — środki zostaną zwrócone na Twoje główne konto w ciągu **7 dni**, zgodnie ze standardowym okresem wypłat Etheny.
 Unstake %amount%: Wycofać %amount%
 Request Unstaking: Żądaj odblokowania
 $unstaking_when_receive_ethena: Będziesz mógł otrzymać swój wycofany depozyt za **7 dni**.
 Coins have been unstaked!: Monety wycofane!
 Confirm Upgrading: Potwierdź ulepszenie
 How does it work?: Jak to działa?
+Multisend: Multiwysyłka
+Renew All: Odnów wszystkie
+Renew: Odnów
+Renew Domain: Odnów domenę
+Renew Domains: Odnów domeny
+Some domains are about to expire: Niektóre domeny wkrótce wygasną
+$domain_expire: "**%domain%** wygasa %days%"
 '%token% Staking': Stakowanie %token%
+Add Tab: Dodaj kartę
+Remove Tab: Usuń kartę
+Link Domain: Połącz domenę
+Domain Linked!: Domenę połączono!
+Failed to process domain operation. Please try again.: Nie udało się przetworzyć operacji domeny. Proszę spróbować ponownie.
+$domains_amount %1$d:
+  zeroValue: Brak domen
+  oneValue: "%1$d domena"
+  fewValue: "%1$d domen"
+  manyValue: "%1$d domen"
+Stake: Stakować
+Manage Tokens: Zarządzaj tokenami
+Claim Rewards: Odbierz nagrody
+Configure DNS: Konfiguruj DNS
+Link to Wallet: Połącz z portfelem
+Change Wallet: Zmień portfel
+Change Linked Wallet: Zmień powiązany portfel
+Domain has been renewed!: Domena została odnowiona!
+Domains have been renewed!: Domeny zostały odnowione!
+Linked Wallet: Powiązany portfel
+Domain has been linked!: Domena została połączona!
+Link: Połącz
+Confirm Renewing: Potwierdź odnowienie
+Confirm Linking: Potwierdź łączenie
+$domains_expire:
+  zeroValue: "Żadne domeny nie wygasają %days%"
+  oneValue: "**%domain% domena** wygasa %days%"
+  fewValue: "**%domain% domeny** wygasną %days%"
+  manyValue: "**%domain% domeny** wygasną %days%"
+$in_days:
+  zeroValue: dziś
+  oneValue: jutro
+  fewValue: "za %1$d dni"
+  manyValue: "za %1$d dni"
+$domain_was_expired: "**%domain%** wygasł"
+$domains_was_expired:
+  zeroValue: "Żadne domeny nie wygasły"
+  oneValue: "**%domain% domena** wygasła"
+  fewValue: "**%domain% domeny** wygasły"
+  manyValue: "**%domain% domeny** wygasły"
+Reload: Przeładuj
+Copy Link: Kopiuj link
+Check eligibility for max APY: Sprawdź dostępność maks. APY
+Check eligibility: Sprawdź dostępność
+$expired_many: Wygasły
+$expires_in %days%:
+  zeroValue: Wygasa %days%
+  oneValue: Wygasa %days%
+  fewValue: Wygasają %days%
+  manyValue: Wygasają %days%
+Message: Wiadomość
+Binary Data: Dane binarne
+The binary data content is unclear. Sign it only if you trust the service.: Treść danych binarnych jest niejasna. Podpisz tylko jeśli ufasz tej usłudze.
+Cell Schema: Schemat komórki
+Cell Data: Dane komórki
+Sign Data: Podpisz dane
+Please confirm signature on your Ledger: Proszę potwierdzić podpis na swoim Ledgerze
+Utilities: Narzędzia
+Games: Gry
+Entertainment: Rozrywka
+Toggle to landscape layout: Przełącz na widok poziomy
+Toggle to portrait layout: Przełącz na widok pionowy
+Attributes: Atrybuty
+Show All: Pokaż wszystkie
+Description: Opis
+No additional data.: Brak dodatkowych danych.
+Domain was copied!: Domena została skopiowana!
+$storage_cleared_title: Pamięć aplikacji została wyczyszczona
+$storage_cleared_message: |
+  Dane portfela zostały wyczyszczone z powodu problemów z przeglądarką lub miejscem na dysku. Proszę wylogować się ze wszystkich portfeli, a następnie ręcznie zaimportować je ponownie, używając swoich sekretnych słów.
+
+  Jeśli potrzebujesz pomocy, skontaktuj się z %support_link%.

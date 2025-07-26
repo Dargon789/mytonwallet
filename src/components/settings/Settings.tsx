@@ -1,13 +1,9 @@
-import React, {
-  memo, useEffect, useMemo, useRef, useState,
-} from '../../lib/teact/teact';
+import React, { memo, useEffect, useMemo, useRef, useState } from '../../lib/teact/teact';
 import { getActions, withGlobal } from '../../global';
 
 import type { ApiTonWalletVersion } from '../../api/chains/ton/types';
 import type { ApiDapp, ApiWalletWithVersionInfo } from '../../api/types';
-import type {
-  Account, GlobalState, HardwareConnectState, UserToken,
-} from '../../global/types';
+import type { Account, GlobalState, UserToken } from '../../global/types';
 import type { LedgerWalletInfo } from '../../util/ledger/types';
 import type { Wallet } from './SettingsWalletVersion';
 import { SettingsState } from '../../global/types';
@@ -50,7 +46,6 @@ import {
   IS_BIOMETRIC_AUTH_SUPPORTED,
   IS_DAPP_SUPPORTED,
   IS_DELEGATED_BOTTOM_SHEET,
-  IS_DELEGATING_BOTTOM_SHEET,
   IS_ELECTRON,
   IS_LEDGER_SUPPORTED,
   IS_TOUCH_ENV,
@@ -135,10 +130,6 @@ type StateProps = {
   supportAccountsCount?: number;
   hardwareWallets?: LedgerWalletInfo[];
   accounts?: Record<string, Account>;
-  hardwareState?: HardwareConnectState;
-  isLedgerConnected?: boolean;
-  isTonAppConnected?: boolean;
-  isRemoteTab?: boolean;
   arePushNotificationsAvailable?: boolean;
   isNftBuyingDisabled?: boolean;
   isViewMode: boolean;
@@ -171,10 +162,6 @@ function Settings({
   supportAccountsCount = SUPPORT_ACCOUNTS_COUNT_DEFAULT,
   accounts,
   hardwareWallets,
-  hardwareState,
-  isLedgerConnected,
-  isTonAppConnected,
-  isRemoteTab,
   arePushNotificationsAvailable,
   isNftBuyingDisabled,
   isViewMode,
@@ -193,15 +180,18 @@ function Settings({
 
   const lang = useLang();
   const { isPortrait } = useDeviceScreen();
-  // eslint-disable-next-line no-null/no-null
-  const transitionRef = useRef<HTMLDivElement>(null);
+
+  const transitionRef = useRef<HTMLDivElement>();
   const { renderingKey } = useModalTransitionKeys(state, isOpen);
   const { disableSwipeToClose, enableSwipeToClose } = useTelegramMiniAppSwipeToClose(isOpen);
   const [clicksAmount, setClicksAmount] = useState<number>(isTestnet ? AMOUNT_OF_CLICKS_FOR_DEVELOPERS_MODE : 0);
   const prevRenderingKeyRef = useStateRef(usePrevious2(renderingKey));
 
   const [isDeveloperModalOpen, openDeveloperModal, closeDeveloperModal] = useFlag();
+  const [withAllWalletVersions, markWithAllWalletVersions] = useFlag();
+
   const [isLogOutModalOpened, openLogOutModal, closeLogOutModal] = useFlag();
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
   const isInitialScreen = renderingKey === SettingsState.Initial;
 
   const activeLang = useMemo(() => LANG_LIST.find((l) => l.langCode === langCode), [langCode]);
@@ -211,28 +201,33 @@ function Settings({
   const tonToken = useMemo(() => tokens?.find(({ slug }) => slug === TONCOIN.slug), [tokens]);
 
   const wallets = useMemo(() => {
-    return versions?.map((v) => {
-      const tonBalance = formatCurrency(toDecimal(v.balance), tonToken?.symbol ?? '');
-      const balanceInCurrency = formatCurrency(
-        toBig(v.balance).mul(tonToken?.price ?? 0).round(tonToken?.decimals),
-        shortBaseSymbol,
-      );
+    return versions
+      ?.filter((v) => v.lastTxId || v.version === 'W5' || withAllWalletVersions)
+      ?.map((v) => {
+        const tonBalance = formatCurrency(toDecimal(v.balance), tonToken?.symbol ?? '');
+        const balanceInCurrency = formatCurrency(
+          toBig(v.balance).mul(tonToken?.price ?? 0).round(tonToken?.decimals),
+          shortBaseSymbol,
+        );
 
-      const accountTokens = [tonBalance];
+        const accountTokens = [tonBalance];
 
-      return {
-        address: v.address,
-        version: v.version,
-        totalBalance: balanceInCurrency,
-        tokens: accountTokens,
-      } satisfies Wallet;
-    }) ?? [];
-  }, [shortBaseSymbol, tonToken, versions]);
+        return {
+          address: v.address,
+          version: v.version,
+          totalBalance: balanceInCurrency,
+          tokens: accountTokens,
+        } satisfies Wallet;
+      }) ?? [];
+  }, [shortBaseSymbol, tonToken, versions, withAllWalletVersions]);
 
   const {
-    transitionClassNames: telegramLinkClassNames,
     shouldRender: isTelegramLinkRendered,
-  } = useShowTransition(isTonMagicEnabled);
+    ref: telegramLinkRef,
+  } = useShowTransition({
+    isOpen: isTonMagicEnabled,
+    withShouldRender: true,
+  });
 
   const {
     handleScroll: handleContentScroll,
@@ -300,7 +295,7 @@ function Settings({
   }
 
   const handleBackClick = useLastCallback(() => {
-    switch (renderingKey) {
+    switch (renderingKey as SettingsState) {
       case SettingsState.HiddenNfts:
       case SettingsState.SelectTokenList:
         setSettingsState({ state: SettingsState.Assets });
@@ -402,6 +397,12 @@ function Settings({
       setClicksAmount(clicksAmount + 1);
     }
   };
+
+  const handleShowAllWalletVersions = useLastCallback(() => {
+    markWithAllWalletVersions();
+    handlCloseDeveloperModal();
+    handleOpenWalletVersion();
+  });
 
   useEffect(
     () => captureEscKeyListener(isInsideModal ? handleBackOrCloseAction : handleBackClick),
@@ -520,7 +521,7 @@ function Settings({
                 />
               </div>
               {isTelegramLinkRendered && (
-                <div className={buildClassName(styles.item, telegramLinkClassNames)} onClick={handleOpenTelegramWeb}>
+                <div ref={telegramLinkRef} className={styles.item} onClick={handleOpenTelegramWeb}>
                   <img className={styles.menuIcon} src={telegramImg} alt={lang('Open Telegram Web')} />
                   {lang('Open Telegram Web')}
 
@@ -635,7 +636,7 @@ function Settings({
               )}
               <div className={styles.block}>
                 <a
-                  href={`https://t.me/${MTW_TIPS_CHANNEL_NAME[langCode as never] ?? MTW_TIPS_CHANNEL_NAME.en}`}
+                  href={`https://t.me/${MTW_TIPS_CHANNEL_NAME[langCode] ?? MTW_TIPS_CHANNEL_NAME.en}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.item}
@@ -741,25 +742,18 @@ function Settings({
             {APP_NAME} {APP_VERSION} {APP_ENV_MARKER}
           </div>
         </div>
-        <SettingsDeveloperOptions
-          isOpen={isDeveloperModalOpen}
-          isTestnet={isTestnet}
-          isCopyStorageEnabled={isCopyStorageEnabled}
-          onClose={handlCloseDeveloperModal}
-        />
       </div>
     );
   }
 
-  // eslint-disable-next-line consistent-return
-  function renderContent(isSlideActive: boolean, isFrom: boolean, currentKey: number) {
+  function renderContent(isSlideActive: boolean, isFrom: boolean, currentKey: SettingsState) {
     switch (currentKey) {
       case SettingsState.Initial:
         return renderSettings();
       case SettingsState.PushNotifications:
         return (
           <SettingsPushNotifications
-            isActive={isSlideActive}
+            isActive={isActive && isSlideActive}
             handleBackClick={handleBackClick}
             isInsideModal={isInsideModal}
           />
@@ -767,7 +761,7 @@ function Settings({
       case SettingsState.Appearance:
         return (
           <SettingsAppearance
-            isActive={isSlideActive}
+            isActive={isActive && isSlideActive}
             theme={theme}
             animationLevel={animationLevel}
             handleBackClick={handleBackClick}
@@ -779,7 +773,7 @@ function Settings({
       case SettingsState.Assets:
         return (
           <SettingsAssets
-            isActive={isSlideActive}
+            isActive={isActive && isSlideActive}
             isInsideModal={isInsideModal}
             onBack={handleBackClick}
           />
@@ -798,7 +792,7 @@ function Settings({
       case SettingsState.Dapps:
         return (
           <SettingsDapps
-            isActive={isSlideActive}
+            isActive={isActive && isSlideActive}
             dapps={dapps}
             handleBackClick={handleBackClick}
             isInsideModal={isInsideModal}
@@ -807,7 +801,7 @@ function Settings({
       case SettingsState.Language:
         return (
           <SettingsLanguage
-            isActive={isSlideActive}
+            isActive={isActive && isSlideActive}
             langCode={langCode}
             handleBackClick={handleBackClick}
             isInsideModal={isInsideModal}
@@ -816,7 +810,7 @@ function Settings({
       case SettingsState.About:
         return (
           <SettingsAbout
-            isActive={isSlideActive}
+            isActive={isActive && isSlideActive}
             handleBackClick={handleBackClick}
             isInsideModal={isInsideModal}
             theme={theme}
@@ -825,7 +819,7 @@ function Settings({
       case SettingsState.Disclaimer:
         return (
           <SettingsDisclaimer
-            isActive={isSlideActive}
+            isActive={isActive && isSlideActive}
             handleBackClick={handleBackClick}
             isInsideModal={isInsideModal}
           />
@@ -833,14 +827,14 @@ function Settings({
       case SettingsState.NativeBiometricsTurnOn:
         return (
           <SettingsNativeBiometricsTurnOn
-            isActive={isSlideActive}
+            isActive={isActive && isSlideActive}
             handleBackClick={handleBackClick}
           />
         );
       case SettingsState.SelectTokenList:
         return (
           <SettingsTokenList
-            isActive={isSlideActive}
+            isActive={isActive && isSlideActive}
             isInsideModal={isInsideModal}
             handleBackClick={handleBackClickToAssets}
           />
@@ -848,7 +842,7 @@ function Settings({
       case SettingsState.WalletVersion:
         return (
           <SettingsWalletVersion
-            isActive={isSlideActive}
+            isActive={isActive && isSlideActive}
             currentVersion={currentVersion}
             handleBackClick={handleBackClick}
             isInsideModal={isInsideModal}
@@ -859,13 +853,8 @@ function Settings({
         return (
           <div className={styles.slide}>
             <LedgerConnect
-              isActive={isSlideActive}
+              isActive={isActive && isSlideActive}
               isStatic={!isInsideModal}
-              shouldDelegateToNative={IS_DELEGATING_BOTTOM_SHEET && !isInsideModal}
-              state={hardwareState}
-              isLedgerConnected={isLedgerConnected}
-              isTonAppConnected={isTonAppConnected}
-              isRemoteTab={isRemoteTab}
               className={styles.nestedTransition}
               onBackButtonClick={handleBackClick}
               onConnected={handleLedgerConnected}
@@ -877,7 +866,7 @@ function Settings({
         return (
           <div className={styles.slide}>
             <LedgerSelectWallets
-              isActive={isSlideActive}
+              isActive={isActive && isSlideActive}
               isStatic={!isInsideModal}
               accounts={accounts}
               hardwareWallets={hardwareWallets}
@@ -889,7 +878,7 @@ function Settings({
       case SettingsState.HiddenNfts:
         return (
           <SettingsHiddenNfts
-            isActive={isSlideActive}
+            isActive={isActive && isSlideActive}
             handleBackClick={handleBackClickToAssets}
             isInsideModal={isInsideModal}
           />
@@ -910,6 +899,13 @@ function Settings({
       >
         {renderContent}
       </Transition>
+      <SettingsDeveloperOptions
+        isOpen={isDeveloperModalOpen}
+        isTestnet={isTestnet}
+        isCopyStorageEnabled={isCopyStorageEnabled}
+        onShowAllWalletVersions={handleShowAllWalletVersions}
+        onClose={handlCloseDeveloperModal}
+      />
       <LogOutModal isOpen={isLogOutModalOpened} onClose={handleCloseLogOutModal} />
       {IS_BIOMETRIC_AUTH_SUPPORTED && <Biometrics isInsideModal={isInsideModal} />}
     </div>
@@ -924,13 +920,7 @@ export default memo(withGlobal<OwnProps>((global): StateProps => {
   const { currentVersion, byId: versionsById } = global.walletVersions ?? {};
   const versions = versionsById?.[global.currentAccountId!];
   const { dapps = MEMO_EMPTY_ARRAY } = selectCurrentAccountState(global) || {};
-  const {
-    hardwareWallets,
-    hardwareState,
-    isLedgerConnected,
-    isTonAppConnected,
-    isRemoteTab,
-  } = global.hardware;
+  const { hardwareWallets } = global.hardware;
 
   return {
     settings: global.settings,
@@ -942,10 +932,6 @@ export default memo(withGlobal<OwnProps>((global): StateProps => {
     versions,
     isCopyStorageEnabled,
     supportAccountsCount,
-    hardwareState,
-    isLedgerConnected,
-    isTonAppConnected,
-    isRemoteTab,
     hardwareWallets,
     accounts,
     isNftBuyingDisabled,

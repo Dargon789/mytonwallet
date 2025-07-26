@@ -63,6 +63,7 @@ export function createAccount({
   partial,
   titlePostfix,
   network,
+  isMnemonicImported,
 }: {
   global: GlobalState;
   accountId: string;
@@ -71,11 +72,13 @@ export function createAccount({
   partial?: Partial<Account>;
   titlePostfix?: string;
   network?: ApiNetwork;
+  isMnemonicImported?: boolean;
 }) {
   const account: Account = {
     ...partial,
     type,
     addressByChain,
+    ...(isMnemonicImported && { importedAt: Date.now() }),
   };
   let shouldForceAccountEdit = true;
 
@@ -110,7 +113,7 @@ export function createAccount({
   }
 
   if (selectAccount(global, accountId)) {
-    throw new Error(`Account ${accountId} already exist`);
+    throw new Error(`Account ${accountId} already exists`);
   }
 
   return {
@@ -155,12 +158,12 @@ export function renameAccount(global: GlobalState, accountId: string, title: str
   return updateAccount(global, accountId, { title });
 }
 
-export function createAccountsFromGlobal(global: GlobalState): GlobalState {
+export function createAccountsFromGlobal(global: GlobalState, isMnemonicImported = false): GlobalState {
   const { firstNetworkAccount, secondNetworkAccount } = global.auth;
 
-  global = createAccount({ global, type: 'mnemonic', ...firstNetworkAccount! });
+  global = createAccount({ global, type: 'mnemonic', ...firstNetworkAccount!, isMnemonicImported });
   if (secondNetworkAccount) {
-    global = createAccount({ global, type: 'mnemonic', ...secondNetworkAccount });
+    global = createAccount({ global, type: 'mnemonic', ...secondNetworkAccount, isMnemonicImported });
   }
 
   return global;
@@ -172,30 +175,31 @@ export function updateBalances(
   chain: ApiChain,
   chainBalances: ApiBalanceBySlug,
 ): GlobalState {
-  const balances: ApiBalanceBySlug = { ...chainBalances };
+  const newBalances: ApiBalanceBySlug = { ...chainBalances };
   const currentBalances = selectAccountState(global, accountId)?.balances?.bySlug ?? {};
-  const importedSlugs = selectAccountSettings(global, accountId)?.importedSlugs ?? [];
-  const hasTonWallet = Boolean(selectAccount(global, accountId)?.addressByChain?.ton);
 
-  for (const [slug, balance] of Object.entries(currentBalances)) {
+  for (const [slug, currentBalance] of Object.entries(currentBalances)) {
     if (getChainBySlug(slug) !== chain) {
-      balances[slug] = balance;
+      newBalances[slug] = currentBalance;
     }
   }
 
-  // Force balance value for USDT-TON and manual imported tokens
+  // Force balance value for USDT-TON and manually imported tokens
+  const importedSlugs = selectAccountSettings(global, accountId)?.importedSlugs ?? [];
+  const hasTonWallet = Boolean(selectAccount(global, accountId)?.addressByChain?.ton);
+
   let forcedSlugs = importedSlugs;
   if (hasTonWallet) forcedSlugs = [...forcedSlugs, TON_USDT_SLUG];
 
   for (const slug of forcedSlugs) {
-    if (!(slug in balances)) {
-      balances[slug] = 0n;
+    if (!(slug in newBalances)) {
+      newBalances[slug] = 0n;
     }
   }
 
   return updateAccountState(global, accountId, {
     balances: {
-      bySlug: balances,
+      bySlug: newBalances,
     },
   });
 }
@@ -263,6 +267,7 @@ export function updateSwapTokens(
         ...currentTokens,
         ...partial,
       },
+      isLoaded: true,
     },
   };
 }
@@ -274,6 +279,12 @@ export function updateCurrentAccountState(global: GlobalState, partial: Partial<
 export function updateAccountState(
   global: GlobalState, accountId: string, partial: Partial<AccountState>, withDeepCompare = false,
 ): GlobalState {
+  // Updates from the API may arrive after the account is removed.
+  // This check prevents that useless data from persisting in the global state.
+  if (!doesAccountExist(global, accountId)) {
+    return global;
+  }
+
   const accountState = selectAccountState(global, accountId);
 
   if (withDeepCompare && accountState && isPartialDeepEqual(accountState, partial)) {
@@ -292,16 +303,6 @@ export function updateAccountState(
   };
 }
 
-export function updateHardware(global: GlobalState, hardwareUpdate: Partial<GlobalState['hardware']>) {
-  return {
-    ...global,
-    hardware: {
-      ...global.hardware,
-      ...hardwareUpdate,
-    },
-  } as GlobalState;
-}
-
 export function updateSettings(global: GlobalState, settingsUpdate: Partial<GlobalState['settings']>) {
   return {
     ...global,
@@ -317,6 +318,12 @@ export function updateAccountSettings(
   accountId: string,
   settingsUpdate: Partial<GlobalState['settings']['byAccountId']['*']>,
 ) {
+  // Updates from the API may arrive after the account is removed.
+  // This check prevents that useless data from persisting in the global state.
+  if (!doesAccountExist(global, accountId)) {
+    return global;
+  }
+
   return {
     ...global,
     settings: {
@@ -368,4 +375,10 @@ export function updateCurrentAccountId(global: GlobalState, accountId: string): 
     ...global,
     currentAccountId: accountId,
   };
+}
+
+export function doesAccountExist(global: GlobalState, accountId: string) {
+  return !!selectAccount(global, accountId)
+    || accountId === global.auth.firstNetworkAccount?.accountId
+    || accountId === global.auth.secondNetworkAccount?.accountId;
 }

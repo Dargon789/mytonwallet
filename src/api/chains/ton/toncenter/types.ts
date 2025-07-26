@@ -18,7 +18,7 @@ export type AccountState = {
 };
 
 export type WalletVersion = 'wallet v1 r1' | 'wallet v1 r2' | 'wallet v1 r3' | 'wallet v2 r1' | 'wallet v2 r2'
-| 'wallet v3 r1' | 'wallet v3 r2' | 'wallet v4 r2' | 'wallet v5 r1';
+  | 'wallet v3 r1' | 'wallet v3 r2' | 'wallet v4 r2' | 'wallet v5 r1';
 
 type CommonWalletState = {
   address: string;
@@ -67,33 +67,34 @@ type BaseAction = {
 };
 
 export type AnyAction = TonTransferAction
-| CallContractAction
-| ContractDeployAction
-| JettonMintAction
-| JettonTransferAction
-| JettonBurnAction
-| NftMintAction
-| NftTransferAction
-| SwapAction
-| DexDepositLiquidityAction
-| DexWithdrawLiquidityAction
-| StakeDepositAction
-| StakeWithdrawalAction
-| StakeWithdrawalRequestAction
-| AuctionBidAction
-| ChangeDnsAction
-| DeleteDnsAction
-| RenewDnsAction
-| SubscribeAction
-| UnsubscribeAction;
+  | CallContractAction
+  | ContractDeployAction
+  | JettonMintAction
+  | JettonTransferAction
+  | JettonBurnAction
+  | NftMintAction
+  | NftTransferAction
+  | SwapAction
+  | DexDepositLiquidityAction
+  | DexWithdrawLiquidityAction
+  | StakeDepositAction
+  | StakeWithdrawalAction
+  | StakeWithdrawalRequestAction
+  | AuctionBidAction
+  | ChangeDnsAction
+  | DeleteDnsAction
+  | RenewDnsAction
+  | SubscribeAction
+  | UnsubscribeAction;
 
 export type MetadataMap = Record<string, {
   is_indexed: boolean;
   token_info: AnyTokenMetadata[];
 }>;
 
-export type StakingProvider = 'tonstakers' | 'nominators' | string;
+export type StakingProvider = 'tonstakers' | 'nominators' | (string & {});
 export type DexSlug = 'stonfi' | 'stonfi_v2' | 'dedust';
+export type MarketplaceSlug = 'fragment' | 'getgems';
 export type AnyTokenMetadata = NftCollectionMetadata | NftItemMetadata | JettonMasterMetadata;
 
 export type TonTransferAction = BaseAction & {
@@ -141,6 +142,7 @@ export type NftTransferAction = BaseAction & {
     forward_payload: string;
     forward_amount: string | null;
     price: string | null;
+    marketplace: MarketplaceSlug | null;
   };
 };
 
@@ -370,7 +372,7 @@ export type NftCollectionMetadata = {
   image?: string;
   extra?: BaseExtra & {
     uri?: string;
-    render_type?: 'hidden' | string;
+    render_type?: 'hidden' | (string & {});
     marketplace?: string;
     cover_image?: string;
   };
@@ -386,9 +388,10 @@ export type NftItemMetadata = {
       trait_type: string;
       value: string;
     }[];
-    render_type?: 'hidden' | string;
+    render_type?: 'hidden' | (string & {});
     marketplace?: string;
     domain?: string;
+    lottie?: string;
   };
 };
 
@@ -494,6 +497,7 @@ export type Transaction = {
     seqno: number;
   };
   in_msg: TransactionMessage;
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
   init_state: null | unknown;
   out_msgs: TransactionMessage[];
   account_state_before: TransactionAccountState;

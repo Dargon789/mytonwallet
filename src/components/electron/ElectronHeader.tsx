@@ -1,3 +1,4 @@
+import type { TeactNode } from '../../lib/teact/teact';
 import React, { memo, useRef } from '../../lib/teact/teact';
 
 import { APP_NAME } from '../../config';
@@ -11,13 +12,12 @@ import UpdateApp from './UpdateApp';
 import styles from './ElectronHeader.module.scss';
 
 type Props = {
-  children?: React.ReactNode;
+  children?: TeactNode;
   withTitle?: boolean;
 };
 
 function ElectronHeader({ children, withTitle }: Props) {
-  // eslint-disable-next-line no-null/no-null
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>();
   useElectronDrag(containerRef);
 
   const handleMinimize = useLastCallback(() => {

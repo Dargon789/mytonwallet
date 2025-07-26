@@ -5,7 +5,7 @@ import { ApiAuthError, ApiCommonError, ApiTransactionDraftError, ApiTransactionE
 import { AppState } from '../../types';
 
 import {
-  DEFAULT_SWAP_FISRT_TOKEN_SLUG,
+  DEFAULT_SWAP_FIRST_TOKEN_SLUG,
   DEFAULT_SWAP_SECOND_TOKEN_SLUG,
   DEFAULT_TRANSFER_TOKEN_SLUG,
   IS_CAPACITOR,
@@ -142,8 +142,6 @@ addActionHandler('afterSignOut', (global, actions, payload) => {
 
     actions.resetApiSettings({ areAllDisabled: true });
   }
-
-  actions.clearSwapPairsCache();
 });
 
 addActionHandler('showDialog', (global, actions, payload) => {
@@ -192,24 +190,24 @@ addActionHandler('selectToken', (global, actions, { slug } = {}) => {
   } else {
     const currentActivityToken = global.byAccountId[global.currentAccountId!].currentTokenSlug;
 
-    const isDefaultFirstTokenOutSwap = global.currentSwap.tokenOutSlug === DEFAULT_SWAP_FISRT_TOKEN_SLUG
-    && global.currentSwap.tokenInSlug === DEFAULT_SWAP_SECOND_TOKEN_SLUG;
+    const isDefaultFirstTokenOutSwap = global.currentSwap.tokenOutSlug === DEFAULT_SWAP_FIRST_TOKEN_SLUG
+      && global.currentSwap.tokenInSlug === DEFAULT_SWAP_SECOND_TOKEN_SLUG;
 
     const shouldResetSwap = global.currentSwap.tokenOutSlug === currentActivityToken
-    && (
-      (
-        global.currentSwap.tokenInSlug === DEFAULT_SWAP_FISRT_TOKEN_SLUG
-        && global.currentSwap.tokenOutSlug !== DEFAULT_SWAP_SECOND_TOKEN_SLUG
-      )
-    || isDefaultFirstTokenOutSwap
-    );
+      && (
+        (
+          global.currentSwap.tokenInSlug === DEFAULT_SWAP_FIRST_TOKEN_SLUG
+          && global.currentSwap.tokenOutSlug !== DEFAULT_SWAP_SECOND_TOKEN_SLUG
+        )
+        || isDefaultFirstTokenOutSwap
+      );
 
     if (shouldResetSwap) {
       actions.setDefaultSwapParams({ tokenInSlug: undefined, tokenOutSlug: undefined, withResetAmount: true });
     }
 
     const shouldResetTransfer = (global.currentTransfer.tokenSlug === currentActivityToken
-    && global.currentTransfer.tokenSlug !== DEFAULT_TRANSFER_TOKEN_SLUG)
+      && global.currentTransfer.tokenSlug !== DEFAULT_TRANSFER_TOKEN_SLUG)
     && !global.currentTransfer.nfts?.length;
 
     if (shouldResetTransfer) {

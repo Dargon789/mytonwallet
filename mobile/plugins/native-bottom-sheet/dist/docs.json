@@ -371,6 +371,10 @@
           "complexTypes": []
         },
         {
+          "text": "'dapp-sign-data'",
+          "complexTypes": []
+        },
+        {
           "text": "'disclaimer'",
           "complexTypes": []
         },
@@ -384,6 +388,14 @@
         },
         {
           "text": "'mint-card'",
+          "complexTypes": []
+        },
+        {
+          "text": "'renew-domain'",
+          "complexTypes": []
+        },
+        {
+          "text": "'link-domain'",
           "complexTypes": []
         }
       ]

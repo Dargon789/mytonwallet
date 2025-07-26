@@ -21,10 +21,13 @@ export type BottomSheetKeys =
   | 'qr-scanner'
   | 'dapp-connect'
   | 'dapp-transfer'
+  | 'dapp-sign-data'
   | 'disclaimer'
   | 'backup-warning'
   | 'onramp-widget'
-  | 'mint-card';
+  | 'mint-card'
+  | 'renew-domain'
+  | 'link-domain';
 
 export interface BottomSheetPlugin {
   prepare(): Promise<void>;

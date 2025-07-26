@@ -1,6 +1,4 @@
-import React, {
-  memo, useEffect, useMemo, useRef,
-} from '../../../../lib/teact/teact';
+import React, { memo, useEffect, useMemo, useRef } from '../../../../lib/teact/teact';
 import { getActions, withGlobal } from '../../../../global';
 
 import type { ApiNft, ApiStakingState } from '../../../../api/types';
@@ -13,9 +11,9 @@ import {
   IS_TELEGRAM_APP,
   LANDSCAPE_MIN_ASSETS_TAB_VIEW,
   PORTRAIT_MIN_ASSETS_TAB_VIEW,
+  TELEGRAM_GIFTS_SUPER_COLLECTION,
 } from '../../../../config';
 import { requestMutation } from '../../../../lib/fasterdom/fasterdom';
-import { getIsActiveStakingState } from '../../../../global/helpers/staking';
 import {
   selectAccountStakingStates,
   selectCurrentAccountState,
@@ -27,6 +25,7 @@ import buildClassName from '../../../../util/buildClassName';
 import { getStatusBarHeight } from '../../../../util/capacitor';
 import { captureEvents, SwipeDirection } from '../../../../util/captureEvents';
 import { compact } from '../../../../util/iteratees';
+import { getIsActiveStakingState } from '../../../../util/staking';
 import { getTelegramApp } from '../../../../util/telegram';
 import { IS_TOUCH_ENV, STICKY_CARD_INTERSECTION_THRESHOLD } from '../../../../util/windowEnvironment';
 import windowSize from '../../../../util/windowSize';
@@ -48,6 +47,7 @@ import Assets from './Assets';
 import NftCollectionHeader from './NftCollectionHeader';
 import Nfts from './Nfts';
 import NftSelectionHeader from './NftSelectionHeader';
+import { OPEN_CONTEXT_MENU_CLASS_NAME } from './Token';
 
 import styles from './Content.module.scss';
 
@@ -72,7 +72,10 @@ interface StateProps {
   };
   currentSiteCategoryId?: number;
   doesSupportNft: boolean;
+  collectionTabs?: string[];
 }
+
+const MAIN_CONTENT_TABS_LENGTH = Object.values(ContentTab).length / 2;
 
 let activeNftKey = 0;
 
@@ -91,6 +94,7 @@ function Content({
   isFullscreen,
   currentSiteCategoryId,
   doesSupportNft,
+  collectionTabs,
 }: OwnProps & StateProps) {
   const {
     selectToken,
@@ -103,8 +107,7 @@ function Content({
 
   const lang = useLang();
   const { isPortrait } = useDeviceScreen();
-  // eslint-disable-next-line no-null/no-null
-  const tabsRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>();
   const hasNftSelection = Boolean(selectedAddresses?.length);
 
   const numberOfStaking = useMemo(() => {
@@ -119,42 +122,56 @@ function Content({
     }
   }, [currentCollectionAddress]);
 
-  const handleNftCollectionClick = useLastCallback((address: string) => {
-    openNftCollection({ address }, { forceOnHeavyAnimation: true });
-  });
-
   const handleNftsMenuButtonClick = useLastCallback((value: string) => {
     if (value === 'hidden_nfts') {
       openSettingsWithState({ state: SettingsState.HiddenNfts });
     } else {
-      handleNftCollectionClick(value);
+      openNftCollection({ address: value }, { forceOnHeavyAnimation: true });
     }
   });
 
   const nftCollections = useMemo(() => {
     const blacklistedNftAddressesSet = new Set(blacklistedNftAddresses);
     const whitelistedNftAddressesSet = new Set(whitelistedNftAddresses);
-    const collections = Object.values(nfts ?? {})
-      .filter((nft) => (
-        !nft.isHidden || whitelistedNftAddressesSet.has(nft.address)
-      ) && !blacklistedNftAddressesSet.has(nft.address))
+
+    let hasTelegramGifts = false;
+
+    const itemsByAddress = Object.values(nfts ?? {})
       .reduce((acc, nft) => {
-        if (nft.collectionAddress) {
-          acc[nft.collectionAddress] = nft.collectionName || lang('Unnamed collection');
+        if (nft.collectionAddress && (
+          !nft.isHidden || whitelistedNftAddressesSet.has(nft.address)
+        ) && (
+          !blacklistedNftAddressesSet.has(nft.address)
+        )) {
+          if (!acc[nft.collectionAddress]) {
+            acc[nft.collectionAddress] = {
+              value: nft.collectionAddress,
+              name: nft.collectionName || lang('Unnamed collection'),
+            };
+          }
+
+          if (!hasTelegramGifts && nft.isTelegramGift) {
+            hasTelegramGifts = true;
+          }
         }
 
         return acc;
-      }, {} as Record<string, string>);
-    const collentionAddresses = Object.keys(collections);
-    collentionAddresses.sort((left, right) => collections[left].localeCompare(collections[right]));
+      }, {} as Record<string, DropdownItem>);
 
-    return collentionAddresses.map<DropdownItem>((key) => {
-      return {
-        id: key,
-        name: collections[key],
-        value: key,
-      };
-    });
+    const items = Object.values(itemsByAddress);
+
+    items.sort((a, b) => a.name.localeCompare(b.name));
+
+    if (hasTelegramGifts) {
+      items.unshift({
+        value: TELEGRAM_GIFTS_SUPER_COLLECTION,
+        name: lang('Telegram Gifts'),
+        fontIcon: 'gift',
+        withDelimiterAfter: true,
+      });
+    }
+
+    return items;
   }, [lang, nfts, blacklistedNftAddresses, whitelistedNftAddresses]);
 
   const shouldRenderHiddenNftsSection = useMemo(() => {
@@ -166,21 +183,18 @@ function Content({
     );
   }, [blacklistedNftAddresses, nfts]);
 
-  // eslint-disable-next-line no-null/no-null
-  const transitionRef = useRef<HTMLDivElement>(null);
+  const transitionRef = useRef<HTMLDivElement>();
 
   const totalTokensAmount = tokensCount + (hasVesting ? 1 : 0) + numberOfStaking;
   const shouldShowSeparateAssetsPanel = totalTokensAmount <= (
     isPortrait ? PORTRAIT_MIN_ASSETS_TAB_VIEW : LANDSCAPE_MIN_ASSETS_TAB_VIEW
   );
 
-  const tabs = useMemo(
-    () => compact([
-      !shouldShowSeparateAssetsPanel
-        && { id: ContentTab.Assets, title: lang('Assets'), className: styles.tab },
+  const [mainContentTabsCount, tabs] = useMemo(() => {
+    const mainContentTabs = compact([
+      !shouldShowSeparateAssetsPanel && { id: ContentTab.Assets, title: lang('Assets'), className: styles.tab },
       { id: ContentTab.Activity, title: lang('Activity'), className: styles.tab },
-      !isPortrait && !IS_CORE_WALLET
-        && { id: ContentTab.Explore, title: lang('Explore'), className: styles.tab },
+      !isPortrait && !IS_CORE_WALLET && { id: ContentTab.Explore, title: lang('Explore'), className: styles.tab },
       doesSupportNft && {
         id: ContentTab.Nft,
         title: lang('NFT'),
@@ -191,15 +205,35 @@ function Content({
             {
               name: lang('Hidden NFTs'),
               value: 'hidden_nfts',
-              withSeparator: true,
+              withDelimiter: true,
             } as DropdownItem,
           ]
           : nftCollections,
         onMenuItemClick: handleNftsMenuButtonClick,
       },
-    ]),
-    [lang, nftCollections, shouldShowSeparateAssetsPanel, shouldRenderHiddenNftsSection, isPortrait, doesSupportNft],
-  );
+    ]);
+
+    return [
+      mainContentTabs.length,
+      mainContentTabs.concat(
+        collectionTabs?.map((collectionAddress, index) => {
+          const collection = nftCollections.find((nc) => nc.value === collectionAddress);
+          if (!collection) return undefined;
+
+          return {
+            id: MAIN_CONTENT_TABS_LENGTH + index,
+            title: collection.name,
+            className: styles.tab,
+            collectionAddress,
+            icon: collectionAddress === TELEGRAM_GIFTS_SUPER_COLLECTION ? 'icon-gift' : undefined,
+          };
+        }).filter(Boolean) ?? [],
+      ),
+    ];
+  }, [
+    collectionTabs, doesSupportNft, isPortrait, lang, nftCollections,
+    shouldRenderHiddenNftsSection, shouldShowSeparateAssetsPanel,
+  ]);
 
   const activeTabIndex = useMemo(
     () => {
@@ -214,13 +248,29 @@ function Content({
     [tabs, activeContentTab],
   );
 
+  const contentTransitionKey = useMemo(() => {
+    if (!currentCollectionAddress || tabs[activeTabIndex].id === ContentTab.Nft) return activeTabIndex;
+
+    const nftCollectionIndex = collectionTabs?.indexOf(currentCollectionAddress) ?? -1;
+
+    return nftCollectionIndex === -1 ? activeTabIndex : mainContentTabsCount + nftCollectionIndex;
+  }, [activeTabIndex, collectionTabs, currentCollectionAddress, mainContentTabsCount, tabs]);
+
   useEffectOnce(() => {
     if (activeContentTab === undefined) {
       setActiveContentTab({ tab: ContentTab.Assets });
     }
   });
 
-  const handleSwitchTab = useLastCallback((tab: ContentTab) => {
+  const handleSwitchTab = useLastCallback((tab: ContentTab | number) => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
+    const tabIndex = tabs.findIndex(({ id }) => id === tab);
+    if (tabIndex >= mainContentTabsCount) {
+      const collectionAddress = collectionTabs![tabIndex - mainContentTabsCount];
+      openNftCollection({ address: collectionAddress }, { forceOnHeavyAnimation: true });
+      return;
+    }
+
     selectToken({ slug: undefined }, { forceOnHeavyAnimation: true });
     setActiveContentTab({ tab });
   });
@@ -265,6 +315,15 @@ function Content({
       includedClosestSelector: '.swipe-container',
       excludedClosestSelector: '.dapps-feed',
       onSwipe: (e, direction) => {
+        if (
+          direction === SwipeDirection.Up
+          || direction === SwipeDirection.Down
+          // For preventing swipe in one interaction with a long press event handler
+          || (e.target as HTMLElement | null)?.closest(`.${OPEN_CONTEXT_MENU_CLASS_NAME}`)
+        ) {
+          return false;
+        }
+
         if (direction === SwipeDirection.Left) {
           const tab = tabs[Math.min(tabs.length - 1, activeTabIndex + 1)];
           handleSwitchTab(tab.id);
@@ -321,11 +380,19 @@ function Content({
       return <Activity isActive={isActive} totalTokensAmount={totalTokensAmount} />;
     }
 
+    if (currentCollectionAddress && tabs[activeTabIndex].id !== ContentTab.Nft) {
+      return (
+        <Nfts key={`custom:${currentCollectionAddress}`} isActive={isActive} />
+      );
+    }
+
     switch (tabs[activeTabIndex].id) {
       case ContentTab.Assets:
         return <Assets isActive={isActive} onTokenClick={handleClickAsset} onStakedTokenClick={onStakedTokenClick} />;
       case ContentTab.Activity:
         return <Activity isActive={isActive} totalTokensAmount={totalTokensAmount} />;
+      case ContentTab.Explore:
+        return <Explore isActive={isActive} />;
       case ContentTab.Nft:
         return (
           <Transition
@@ -336,30 +403,34 @@ function Content({
             <Nfts key={currentCollectionAddress || 'all'} isActive={isActive} />
           </Transition>
         );
-      case ContentTab.Explore:
-        return <Explore isActive={isActive} />;
       default:
         return undefined;
     }
   }
 
   function renderContent() {
-    const activeKey = hasNftSelection || (!isPortrait && currentSiteCategoryId)
+    const headerTransitionKey = hasNftSelection || (!isPortrait && currentSiteCategoryId)
       ? 2
       : (currentCollectionAddress ? 1 : 0);
 
     return (
       <>
         <div ref={tabsRef} className={styles.tabsContainer}>
-          <Transition activeKey={activeKey} name="slideFade" className={styles.tabsContent}>
+          <Transition
+            name="slideFade"
+            className={styles.tabsContent}
+            activeKey={headerTransitionKey}
+            shouldCleanup
+            cleanupExceptionKey={0}
+          >
             {renderTabsPanel()}
           </Transition>
         </div>
         <Transition
           ref={transitionRef}
           name={isPortrait ? 'slide' : 'slideFade'}
-          activeKey={activeTabIndex}
-          renderCount={tabs.length}
+          activeKey={contentTransitionKey}
+          renderCount={mainContentTabsCount + (collectionTabs?.length ?? 0)}
           className={buildClassName(styles.slides, 'content-transition')}
           slideClassName={buildClassName(styles.slide, 'custom-scroll')}
         >
@@ -407,6 +478,7 @@ export default memo(
           byAddress: nfts,
           currentCollectionAddress,
           selectedAddresses,
+          collectionTabs,
         } = {},
         currentSiteCategoryId,
       } = selectCurrentAccountState(global) ?? {};
@@ -431,6 +503,7 @@ export default memo(
         currentSiteCategoryId,
         isFullscreen: global.isFullscreen,
         doesSupportNft,
+        collectionTabs,
       };
     },
     (global, _, stickToFirst) => stickToFirst(global.currentAccountId),

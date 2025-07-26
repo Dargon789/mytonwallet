@@ -1,4 +1,4 @@
-import type { TeactNode } from '../../../../lib/teact/teact';
+import type { ElementRef } from '../../../../lib/teact/teact';
 import React, { memo, useMemo, useState } from '../../../../lib/teact/teact';
 import { getActions, withGlobal } from '../../../../global';
 
@@ -8,11 +8,12 @@ import type { PriceHistoryPeriods, TokenPeriod, UserToken } from '../../../../gl
 import { DEFAULT_PRICE_CURRENCY, HISTORY_PERIODS, IS_CORE_WALLET, TONCOIN } from '../../../../config';
 import { selectAccountStakingStates, selectCurrentAccountState } from '../../../../global/selectors';
 import buildClassName from '../../../../util/buildClassName';
+import { calcBigChangeValue } from '../../../../util/calcChangeValue';
 import { formatShortDay, SECOND } from '../../../../util/dateFormat';
 import { toBig, toDecimal } from '../../../../util/decimals';
 import { formatCurrency, getShortCurrencySymbol } from '../../../../util/formatNumber';
 import { vibrate } from '../../../../util/haptics';
-import { handleOpenUrl } from '../../../../util/openUrl';
+import { handleUrlClick } from '../../../../util/openUrl';
 import { round } from '../../../../util/round';
 import { getExplorerName, getExplorerTokenUrl } from '../../../../util/url';
 import { IS_IOS } from '../../../../util/windowEnvironment';
@@ -40,8 +41,9 @@ import styles from './Card.module.scss';
 import tonUrl from '../../../../assets/coins/ton.svg';
 
 interface OwnProps {
+  ref?: ElementRef<HTMLDivElement>;
   token: UserToken;
-  classNames: string;
+  classNames?: string;
   isUpdating?: boolean;
   onYieldClick?: (stakingId?: string) => void;
   onClose: NoneToVoidFunction;
@@ -65,6 +67,7 @@ const INTERVAL = 5 * SECOND;
 const DEFAULT_PERIOD = HISTORY_PERIODS[0];
 
 function TokenCard({
+  ref,
   isTestnet,
   token,
   classNames,
@@ -149,17 +152,18 @@ function TokenCard({
     return history?.find(([, value]) => Boolean(value))?.[1];
   }, [history]);
 
-  const change = (initialPrice && price) ? price - initialPrice : 0;
-  const amountChange = (initialPrice && tokenChangePrice) ? tokenChangePrice - initialPrice : 0;
-
-  const value = toBig(amount, decimals).mul(price).toString();
+  const valueBig = toBig(amount, decimals).mul(price);
+  const value = valueBig.toString();
+  const change = initialPrice && price ? price - initialPrice : 0;
+  const changeFactor = initialPrice && tokenChangePrice ? tokenChangePrice / initialPrice - 1 : 0;
+  const amountChange = initialPrice && tokenChangePrice ? calcBigChangeValue(valueBig, changeFactor).toNumber() : 0;
   const changePrefix = change === undefined ? change : change > 0 ? '↑' : change < 0 ? '↓' : 0;
 
   const changeValue = amountChange ? Math.abs(round(amountChange, 4)) : 0;
   const changePercent = change ? Math.abs(round((change / initialPrice!) * 100, 2)) : 0;
 
   const withChange = Boolean(change !== undefined);
-  const historyStartDay = history?.length ? new Date(history![0][0] * 1000) : undefined;
+  const historyStartDay = history?.length ? new Date(history[0][0] * 1000) : undefined;
   const withExplorerButton = Boolean(token.cmcSlug || tokenAddress);
   const shouldHideChartPeriodSwitcher = !history?.length && token.priceUsd === 0;
 
@@ -172,7 +176,7 @@ function TokenCard({
     const title = (lang(
       'Open on %ton_explorer_name%',
       { ton_explorer_name: getExplorerName(token.chain) },
-    ) as TeactNode[]).join('');
+    ) as string[]).join('');
 
     return (
       <>
@@ -184,7 +188,7 @@ function TokenCard({
           target="_blank"
           rel="noreferrer"
           className={styles.tokenExplorerButton}
-          onClick={handleOpenUrl}
+          onClick={handleUrlClick}
         >
           <i className="icon-tonexplorer-small" aria-hidden />
         </a>
@@ -193,7 +197,7 @@ function TokenCard({
   }
 
   return (
-    <div className={buildClassName(styles.container, styles.tokenCard, classNames, color, 'token-card')}>
+    <div ref={ref} className={buildClassName(styles.container, styles.tokenCard, classNames, color, 'token-card')}>
       <div className={styles.tokenInfo}>
         <Button className={styles.backButton} isSimple onClick={onClose} ariaLabel={lang('Back')}>
           <i className="icon-chevron-left" aria-hidden />
@@ -227,7 +231,7 @@ function TokenCard({
                 </div>
                 <CurrencySwitcher
                   isOpen={isCurrencyMenuOpen}
-                  menuPositionHorizontal="right"
+                  menuPositionX="right"
                   excludedCurrency={token.symbol}
                   onClose={closeCurrencyMenu}
                   onChange={handleCurrencyChange}
@@ -244,7 +248,7 @@ function TokenCard({
                 className={buildClassName(styles.apy, onYieldClick && styles.interactive)}
                 onClick={onYieldClick ? () => onYieldClick(stakingId) : undefined}
               >
-                {yieldType} {annualYield}%
+                {yieldType} {round(annualYield ?? 0, 2)}%
               </span>
             )}
           </span>
@@ -281,14 +285,14 @@ function TokenCard({
               imgClassName={styles.chartImg}
               width={CHART_DIMENSIONS.width}
               height={CHART_DIMENSIONS.height}
-              prices={history!}
+              prices={history}
               selectedIndex={selectedHistoryIndex}
               onSelectIndex={setSelectedHistoryIndex}
               isUpdating={isUpdating}
             />
 
             <div className={styles.tokenHistoryPrice}>
-              {formatCurrency(history![0][1], currencySymbol, 2, true)}
+              {formatCurrency(history[0][1], currencySymbol, 2, true)}
               <div className={styles.tokenPriceDate}>{formatShortDay(lang.code!, historyStartDay!)}</div>
             </div>
           </>

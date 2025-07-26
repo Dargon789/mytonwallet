@@ -8,7 +8,6 @@ import {
   ELECTRON_TONCENTER_MAINNET_KEY,
   ELECTRON_TONCENTER_TESTNET_KEY,
   IS_CAPACITOR,
-  IS_EXTENSION,
   TONCENTER_MAINNET_KEY,
   TONCENTER_TESTNET_KEY,
 } from '../config';
@@ -16,8 +15,8 @@ import {
 const ELECTRON_ORIGIN = 'file://';
 
 let environment: ApiInitArgs & {
-  isDappSupported: boolean;
-  isSseSupported: boolean;
+  isDappSupported?: boolean;
+  isSseSupported?: boolean;
   apiHeaders?: AnyLiteral;
   toncenterMainnetKey?: string;
   toncenterTestnetKey?: string;
@@ -26,9 +25,9 @@ let environment: ApiInitArgs & {
 export function setEnvironment(args: ApiInitArgs) {
   environment = {
     ...args,
-    isDappSupported: IS_EXTENSION || IS_CAPACITOR || args.isElectron,
+    isDappSupported: true,
     isSseSupported: args.isElectron || (IS_CAPACITOR && !args.isNativeBottomSheet),
-    // eslint-disable-next-line no-restricted-globals
+
     apiHeaders: { 'X-App-Origin': args.isElectron ? ELECTRON_ORIGIN : self?.origin },
     toncenterMainnetKey: args.isElectron ? ELECTRON_TONCENTER_MAINNET_KEY : TONCENTER_MAINNET_KEY,
     toncenterTestnetKey: args.isElectron ? ELECTRON_TONCENTER_TESTNET_KEY : TONCENTER_TESTNET_KEY,

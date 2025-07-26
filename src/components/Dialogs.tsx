@@ -1,4 +1,4 @@
-import { Dialog } from 'native-dialog';
+import { Dialog } from '@capacitor/dialog';
 import type { FC } from '../lib/teact/teact';
 import React, { memo, useEffect } from '../lib/teact/teact';
 import { getActions, withGlobal } from '../global';
@@ -31,7 +31,7 @@ const Dialogs: FC<StateProps> = ({ dialogs }) => {
   const title = lang(dialog?.title ?? 'Something went wrong');
 
   useEffect(() => {
-    if (IS_CAPACITOR) {
+    if (IS_CAPACITOR && typeof dialog?.message == 'string' && !dialog?.footerButtons) {
       if (dialog) {
         void Dialog.alert({
           title,
@@ -47,7 +47,7 @@ const Dialogs: FC<StateProps> = ({ dialogs }) => {
     }
   }, [dialogs, lang, dialog, openModal, title]);
 
-  if (!dialog || IS_CAPACITOR) {
+  if (!dialog) {
     return undefined;
   }
 
@@ -57,13 +57,19 @@ const Dialogs: FC<StateProps> = ({ dialogs }) => {
       isCompact
       title={title}
       noBackdropClose={dialog.noBackdropClose}
+      isInAppLock={dialog.isInAppLock}
       onClose={closeModal}
       onCloseAnimationEnd={dismissDialog}
     >
       <div>
-        {renderText(lang(dialog.message))}
+        {
+          typeof dialog.message == 'string'
+            ? renderText(lang(dialog.message, dialog.entities))
+            : dialog.message
+        }
       </div>
       <div className={modalStyles.footerButtons}>
+        {dialog.footerButtons}
         <Button onClick={closeModal}>{lang('OK')}</Button>
       </div>
     </Modal>

@@ -8,3 +8,5 @@ export * from './swap';
 export * from './transfer';
 export * from './vesting';
 export * from './cards';
+export * from './domains';
+export * from './hardware';

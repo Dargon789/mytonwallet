@@ -3,6 +3,7 @@ import type { ApiDbSseConnection } from '../db';
 import type { StorageKey } from '../storages/types';
 import type {
   ApiActivity,
+  ApiDappsState,
   ApiLocalTransactionParams,
   ApiTonAccount,
   ApiTonWallet,
@@ -25,7 +26,6 @@ import { storage } from '../storages';
 import capacitorStorage from '../storages/capacitorStorage';
 import idbStorage from '../storages/idb';
 import localStorage from '../storages/localStorage';
-import { isAccountActive } from './accounts';
 import {
   checkHasScamLink,
   checkHasTelegramBotMention,
@@ -34,7 +34,7 @@ import {
 } from './addresses';
 import { hexToBytes } from './utils';
 
-const actualStateVersion = 17;
+const actualStateVersion = 18;
 let migrationEnsurePromise: Promise<void>;
 
 export function buildLocalTransaction(
@@ -95,10 +95,6 @@ export function connectUpdater(onUpdate: OnApiUpdate) {
 
 export function disconnectUpdater() {
   currentOnUpdate = undefined;
-}
-
-export function isAlive(_onUpdate: OnApiUpdate, accountId: string) {
-  return isUpdaterAlive(_onUpdate) && isAccountActive(accountId);
 }
 
 export function isUpdaterAlive(onUpdate: OnApiUpdate) {
@@ -221,10 +217,10 @@ export async function migrateStorage(onUpdate: OnApiUpdate, ton: typeof chains.t
   }
 
   if (version === 5) {
-    const dapps = await storage.getItem('dapps');
+    const dapps = await storage.getItem('dapps') as ApiDappsState;
     if (dapps) {
-      for (const accountDapps of Object.values(dapps) as any[]) {
-        for (const dapp of Object.values(accountDapps) as any[]) {
+      for (const accountDapps of Object.values(dapps)) {
+        for (const dapp of Object.values(accountDapps as Record<string, any>)) {
           dapp.connectedAt = 1;
         }
       }
@@ -277,9 +273,8 @@ export async function migrateStorage(onUpdate: OnApiUpdate, ton: typeof chains.t
         onUpdate({
           type: 'updateAccount',
           accountId,
-          partial: {
-            address: newAddress,
-          },
+          chain: 'ton',
+          address: newAddress,
         });
       }
 
@@ -295,13 +290,13 @@ export async function migrateStorage(onUpdate: OnApiUpdate, ton: typeof chains.t
 
   if (version === 8) {
     if (getEnvironment().isSseSupported) {
-      const dapps = await storage.getItem('dapps');
+      const dapps = await storage.getItem('dapps') as ApiDappsState;
 
       if (dapps) {
         const items: ApiDbSseConnection[] = [];
 
-        for (const accountDapps of Object.values(dapps) as any[]) {
-          for (const dapp of Object.values(accountDapps) as any[]) {
+        for (const accountDapps of Object.values(dapps)) {
+          for (const dapp of Object.values(accountDapps as Record<string, any>)) {
             if (dapp.sse?.appClientId) {
               items.push({ clientId: dapp.sse?.appClientId });
             }
@@ -381,9 +376,8 @@ export async function migrateStorage(onUpdate: OnApiUpdate, ton: typeof chains.t
           onUpdate({
             type: 'updateAccount',
             accountId,
-            partial: {
-              address: account.address,
-            },
+            chain: 'ton',
+            address: account.address,
           });
         }
       }
@@ -406,6 +400,13 @@ export async function migrateStorage(onUpdate: OnApiUpdate, ton: typeof chains.t
     await migrations.migration16.start();
 
     version = 17;
+    await storage.setItem('stateVersion', version);
+  }
+
+  if (version === 17) {
+    await migrations.migration17.start();
+
+    version = 18;
     await storage.setItem('stateVersion', version);
   }
 }

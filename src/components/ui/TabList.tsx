@@ -19,6 +19,7 @@ export type TabWithProperties = {
   className?: string;
   menuItems?: DropdownItem[];
   onMenuItemClick?: (value: string) => void;
+  icon?: string;
 };
 
 type OwnProps = {
@@ -37,8 +38,7 @@ const SCROLL_DURATION = IS_IOS ? 450 : IS_ANDROID ? 400 : 300;
 function TabList({
   tabs, activeTab, big, className, withBorder, onSwitchTab,
 }: OwnProps) {
-  // eslint-disable-next-line no-null/no-null
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>();
   const previousActiveTab = usePrevious(activeTab);
 
   const fullClassName = buildClassName(
@@ -91,6 +91,7 @@ function TabList({
           onMenuItemClick={tab?.onMenuItemClick}
           onClick={onSwitchTab}
           clickArg={tab.id}
+          icon={tab.icon}
         />
       ))}
     </div>

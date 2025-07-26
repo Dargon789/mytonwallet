@@ -7,7 +7,7 @@ export {
   getWalletFromMnemonic,
   getWalletFromPrivateKey,
   getWalletFromAddress,
-  importNewWalletVersion,
+  getOtherVersionWallet,
 } from './auth';
 export {
   getAccountNfts,
@@ -16,6 +16,12 @@ export {
   submitNftTransfers,
   checkNftOwnership,
 } from './nfts';
+export {
+  submitDnsRenewal,
+  checkDnsRenewalDraft,
+  checkDnsChangeWalletDraft,
+  submitDnsChangeWallet,
+} from './domains';
 export { oneCellFromBoc } from './util/tonCore';
 export {
   checkTransactionDraft,
@@ -61,8 +67,6 @@ export {
   checkApiAvailability,
 } from './other';
 export {
-  getAccountTokenBalances,
-  getTokenBalances,
   fetchToken,
   insertMintlessPayload,
   getToncoinAmountForTransfer,
@@ -82,11 +86,8 @@ export {
 } from './swap';
 export { Workchain } from './constants';
 export {
-  setupPolling,
-  setupInactiveAccountsBalancePolling,
-  clearAccountsCache,
-  clearAccountCache,
-  clearAccountsCacheByNetwork,
+  setupActivePolling,
+  setupInactivePolling,
 } from './polling';
 export {
   fetchActivityDetails,

@@ -1,11 +1,11 @@
-# native-bottom-sheet
+# @mytonwallet/native-bottom-sheet
 
 Allows to open a native BottomSheet/FloatingPanel on iOS
 
 ## Install
 
 ```bash
-npm install native-bottom-sheet
+npm install @mytonwallet/native-bottom-sheet
 npx cap sync
 ```
 
@@ -253,6 +253,6 @@ addListener(eventName: 'openInMain', handler: (options: { key: BottomSheetKeys; 
 
 #### BottomSheetKeys
 
-<code>'initial' | 'receive' | 'invoice' | 'transfer' | 'swap' | 'stake' | 'unstake' | 'staking-info' | 'staking-claim' | 'vesting-info' | 'vesting-confirm' | 'transaction-info' | 'swap-activity' | 'backup' | 'add-account' | 'import-account' | 'settings' | 'qr-scanner' | 'dapp-connect' | 'dapp-transfer' | 'disclaimer' | 'backup-warning' | 'onramp-widget' | 'mint-card'</code>
+<code>'initial' | 'receive' | 'invoice' | 'transfer' | 'swap' | 'stake' | 'unstake' | 'staking-info' | 'staking-claim' | 'vesting-info' | 'vesting-confirm' | 'transaction-info' | 'swap-activity' | 'backup' | 'add-account' | 'import-account' | 'settings' | 'qr-scanner' | 'dapp-connect' | 'dapp-transfer' | 'dapp-sign-data' | 'disclaimer' | 'backup-warning' | 'onramp-widget' | 'mint-card' | 'renew-domain' | 'link-domain'</code>
 
 </docgen-api>

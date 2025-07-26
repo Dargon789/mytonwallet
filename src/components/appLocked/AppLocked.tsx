@@ -1,14 +1,10 @@
-import { BottomSheet } from 'native-bottom-sheet';
-import React, {
-  memo, useEffect, useMemo, useRef, useState,
-} from '../../lib/teact/teact';
-import { getActions, withGlobal } from '../../global';
+import { BottomSheet } from '@mytonwallet/native-bottom-sheet';
+import React, { memo, useEffect, useMemo, useRef, useState } from '../../lib/teact/teact';
+import { getActions, getGlobal, withGlobal } from '../../global';
 
 import type { AutolockValueType, Theme } from '../../global/types';
 
-import {
-  AUTOLOCK_OPTIONS_LIST, DEBUG, IS_TELEGRAM_APP,
-} from '../../config';
+import { AUTOLOCK_OPTIONS_LIST, DEBUG, IS_TELEGRAM_APP } from '../../config';
 import {
   selectIsBiometricAuthEnabled,
   selectIsNativeBiometricAuthEnabled,
@@ -18,11 +14,7 @@ import { getDoesUsePinPad } from '../../util/biometrics';
 import buildClassName from '../../util/buildClassName';
 import { stopEvent } from '../../util/domEvents';
 import { createSignal } from '../../util/signals';
-import {
-  IS_DELEGATED_BOTTOM_SHEET,
-  IS_DELEGATING_BOTTOM_SHEET,
-  IS_ELECTRON,
-} from '../../util/windowEnvironment';
+import { IS_DELEGATED_BOTTOM_SHEET, IS_DELEGATING_BOTTOM_SHEET, IS_ELECTRON } from '../../util/windowEnvironment';
 
 import useBackgroundMode, { isBackgroundModeActive } from '../../hooks/useBackgroundMode';
 import useEffectOnce from '../../hooks/useEffectOnce';
@@ -110,13 +102,12 @@ function useAppLockState(autolockValue: AutolockValueType, isManualLockActive: b
 function useContentSlide(
   isNonNativeBiometricAuthEnabled: boolean, isLocked: boolean, lockReason?: 'autolock' | 'manual',
 ) {
-  // eslint-disable-next-line no-null/no-null
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement>();
 
   function getDefaultSlideForBiometricAuth() {
     return (
       (isBackgroundModeActive() || lockReason === 'manual')
-        && isNonNativeBiometricAuthEnabled ? SLIDES.button : SLIDES.passwordForm
+      && isNonNativeBiometricAuthEnabled ? SLIDES.button : SLIDES.passwordForm
     );
   }
 
@@ -183,7 +174,7 @@ function AppLocked({
   canRender,
 }: StateProps): TeactJsx {
   const {
-    clearIsPinAccepted, submitAppLockActivityEvent, setIsManualLockActive,
+    clearIsPinAccepted, submitAppLockActivityEvent, setIsManualLockActive, setIsAppLockActive,
   } = getActions();
 
   const [isLocked, lock, unlock, lockReason] = useAppLockState(autolockValue, !!isManualLockActive, canRender);
@@ -218,13 +209,25 @@ function AppLocked({
     setIsManualLockActive({ isActive: undefined, shouldHideBiometrics: undefined });
     if (IS_DELEGATING_BOTTOM_SHEET) void BottomSheet.show();
     unfixSlide();
+    setIsAppLockActive({ isActive: false });
   });
 
   const autolockPeriod = useMemo(
     () => AUTOLOCK_OPTIONS_LIST.find((option) => option.value === autolockValue)!.period, [autolockValue],
   );
 
-  const { transitionClassNames } = useShowTransition(isLocked, afterUnlockCallback, true, 'slow');
+  const { ref: transitionRef } = useShowTransition({
+    isOpen: isLocked,
+    noMountTransition: true,
+    className: 'slow',
+    onCloseAnimationEnd: afterUnlockCallback,
+  });
+
+  useEffect(() => {
+    if (isLocked !== getGlobal().isAppLockActive) {
+      setIsAppLockActive({ isActive: !!isLocked });
+    }
+  }, [isLocked]);
 
   const forceLockApp = useLastCallback(() => {
     lock();
@@ -235,6 +238,7 @@ function AppLocked({
     if (IS_DELEGATING_BOTTOM_SHEET) void BottomSheet.hide();
     void getInAppBrowser()?.hide();
     setSlideForBiometricAuth(getDefaultSlideForBiometricAuth());
+    setIsAppLockActive({ isActive: true });
   });
 
   const handleLock = useLastCallback(() => {
@@ -294,11 +298,13 @@ function AppLocked({
 
   function renderTransitionContent(isActive: boolean) {
     return (
-      <div className={buildClassName(
-        styles.appLocked,
-        innerContentTopPosition !== undefined && styles.appLockedFixed,
-        getDoesUsePinPad() && slideForBiometricAuth === SLIDES.passwordForm && styles.withPinPad,
-      )}>
+      <div
+        className={buildClassName(
+          styles.appLocked,
+          innerContentTopPosition !== undefined && styles.appLockedFixed,
+          getDoesUsePinPad() && slideForBiometricAuth === SLIDES.passwordForm && styles.withPinPad,
+        )}
+      >
         {
           slideForBiometricAuth === SLIDES.button && isNonNativeBiometricAuthEnabled
             ? (
@@ -342,10 +348,11 @@ function AppLocked({
 
   return (
     <Transition
+      ref={transitionRef}
       name={isNonNativeBiometricAuthEnabled && IS_TELEGRAM_APP ? 'slideFade' : 'semiFade'}
       onContainerClick={handleUnlockIntent}
       activeKey={transitionKey}
-      className={buildClassName(transitionClassNames, styles.appLockedWrapper)}
+      className={styles.appLockedWrapper}
       shouldCleanup
     >
       {shouldRenderUi ? renderTransitionContent : undefined}

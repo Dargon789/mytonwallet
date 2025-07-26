@@ -5,21 +5,18 @@ import React, {
 import { getActions, withGlobal } from '../../global';
 
 import type { ApiBaseCurrency, ApiStakingState } from '../../api/types';
-import type {
-  GlobalState, HardwareConnectState, Theme, UserToken,
-} from '../../global/types';
+import type { GlobalState, Theme, UserToken } from '../../global/types';
 import { ApiTransactionDraftError } from '../../api/types';
 import { StakingState } from '../../global/types';
 
 import {
   ANIMATED_STICKER_TINY_ICON_PX,
   IS_CAPACITOR,
-  STAKING_CYCLE_DURATION_MS,
   TONCOIN,
+  VALIDATION_PERIOD_MS,
 } from '../../config';
 import { Big } from '../../lib/big.js';
 import renderText from '../../global/helpers/renderText';
-import { getIsLongUnstake } from '../../global/helpers/staking';
 import {
   selectAccountStakingState,
   selectCurrentAccountTokens,
@@ -33,7 +30,7 @@ import { fromDecimal, toBig, toDecimal } from '../../util/decimals';
 import { getTonStakingFees } from '../../util/fee/getTonOperationFees';
 import { formatCurrency, getShortCurrencySymbol } from '../../util/formatNumber';
 import resolveSlideTransitionName from '../../util/resolveSlideTransitionName';
-import { getUnstakeTime } from '../../util/staking';
+import { getIsLongUnstake, getUnstakeTime } from '../../util/staking';
 import { getIsMobileTelegramApp } from '../../util/windowEnvironment';
 import { ANIMATED_STICKERS_PATHS } from '../ui/helpers/animatedAssets';
 import { ASSET_LOGO_PATHS } from '../ui/helpers/assetLogos';
@@ -68,12 +65,8 @@ import styles from './Staking.module.scss';
 type StateProps = GlobalState['currentStaking'] & {
   isViewMode: boolean;
   tokens?: UserToken[];
-  stakingInfo: GlobalState['stakingInfo'];
   baseCurrency?: ApiBaseCurrency;
   isNominators?: boolean;
-  hardwareState?: HardwareConnectState;
-  isLedgerConnected?: boolean;
-  isTonAppConnected?: boolean;
   theme: Theme;
   isMultichainAccount: boolean;
   stakingState?: ApiStakingState;
@@ -102,12 +95,8 @@ function UnstakeModal({
   isLoading,
   error,
   tokens,
-  stakingInfo,
   baseCurrency,
   isNominators,
-  hardwareState,
-  isLedgerConnected,
-  isTonAppConnected,
   isMultichainAccount,
   theme,
   amount,
@@ -130,8 +119,6 @@ function UnstakeModal({
     balance: stakingBalance,
   } = stakingState ?? {};
 
-  const unstakeTime = getUnstakeTime(stakingState, stakingInfo);
-
   const lang = useLang();
   const isOpen = IS_OPEN_STATES.has(state);
 
@@ -139,7 +126,7 @@ function UnstakeModal({
 
   const nativeToken = useMemo(() => tokens?.find(({ slug }) => slug === TONCOIN.slug), [tokens]);
   const isNativeEnough = nativeToken && nativeToken.amount >= networkFee;
-  const instantAvailable = stakingType === 'liquid' ? stakingInfo?.liquid?.available ?? 0n : 0n;
+  const instantAvailable = stakingState?.type === 'liquid' ? stakingState.instantAvailable : undefined;
 
   const token = useMemo(() => {
     return tokenSlug ? tokens?.find(({ slug }) => slug === tokenSlug) : undefined;
@@ -150,16 +137,17 @@ function UnstakeModal({
 
   const [hasAmountError, setHasAmountError] = useState<boolean>(false);
 
-  const isLongUnstake = stakingState ? getIsLongUnstake(stakingState, amount) : undefined;
-
   const [isInsufficientBalance, setIsInsufficientBalance] = useState(false);
 
   const [unstakeAmount, setUnstakeAmount] = useState(isNominators ? stakingBalance : undefined);
   const [successUnstakeAmount, setSuccessUnstakeAmount] = useState<bigint | undefined>(undefined);
 
+  const unstakeTime = getUnstakeTime(stakingState);
+  const isLongUnstake = stakingState ? getIsLongUnstake(stakingState, unstakeAmount) : undefined;
+
   const shortBaseSymbol = getShortCurrencySymbol(baseCurrency);
 
-  const [unstakeDate, setUnstakeDate] = useState<number>(unstakeTime ?? Date.now() + STAKING_CYCLE_DURATION_MS);
+  const [unstakeDate, setUnstakeDate] = useState<number>(unstakeTime ?? Date.now() + VALIDATION_PERIOD_MS);
   const forceUpdate = useForceUpdate();
   const appTheme = useAppTheme(theme);
 
@@ -174,9 +162,10 @@ function UnstakeModal({
   const renderingAmountInCurrency = useCurrentOrPrev(amountInCurrency, true);
   const isUnstakeDisabled = !isNativeEnough || isInsufficientBalance || !unstakeAmount;
 
-  const { shouldRender: shouldRenderCurrency, transitionClassNames: currencyClassNames } = useShowTransition(
-    Boolean(amountInCurrency),
-  );
+  const { shouldRender: shouldRenderCurrency, ref: currencyRef } = useShowTransition({
+    isOpen: Boolean(amountInCurrency),
+    withShouldRender: true,
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -298,7 +287,7 @@ function UnstakeModal({
 
   function renderCurrencyValue() {
     return (
-      <span className={buildClassName(styles.amountInCurrency, currencyClassNames)}>
+      <span ref={currencyRef} className={styles.amountInCurrency}>
         ≈&thinsp;{formatCurrency(renderingAmountInCurrency || '0', shortBaseSymbol)}
       </span>
     );
@@ -495,8 +484,7 @@ function UnstakeModal({
     );
   }
 
-  // eslint-disable-next-line consistent-return
-  function renderContent(isActive: boolean, isFrom: boolean, currentKey: number) {
+  function renderContent(isActive: boolean, isFrom: boolean, currentKey: StakingState) {
     switch (currentKey) {
       case StakingState.UnstakeInitial:
         return renderInitial();
@@ -508,9 +496,6 @@ function UnstakeModal({
         return (
           <LedgerConnect
             isActive={isActive}
-            state={hardwareState}
-            isLedgerConnected={isLedgerConnected}
-            isTonAppConnected={isTonAppConnected}
             onConnected={handleLedgerConnect}
             onClose={cancelStaking}
           />
@@ -564,21 +549,11 @@ export default memo(withGlobal((global): StateProps => {
   const stakingState = selectAccountStakingState(global, accountId);
   const isNominators = stakingState?.type === 'nominators';
 
-  const {
-    hardwareState,
-    isLedgerConnected,
-    isTonAppConnected,
-  } = global.hardware;
-
   return {
     ...global.currentStaking,
     tokens,
-    stakingInfo: global.stakingInfo,
     baseCurrency,
     isNominators,
-    hardwareState,
-    isLedgerConnected,
-    isTonAppConnected,
     theme: global.settings.theme,
     isMultichainAccount,
     stakingState,

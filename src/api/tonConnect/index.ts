@@ -1,6 +1,6 @@
 /* TonConnect specification https://github.com/ton-blockchain/ton-connect */
 
-import { Address, Cell } from '@ton/core';
+import { Cell } from '@ton/core';
 import type {
   ConnectEventError,
   ConnectItemReply,
@@ -9,18 +9,21 @@ import type {
   DisconnectRpcResponse,
   SendTransactionRpcRequest,
   SendTransactionRpcResponse,
+  SignDataPayload,
   SignDataRpcRequest,
+  SignDataRpcResponse,
+  SignDataRpcResponseSuccess,
   TonProofItem,
   TonProofItemReplySuccess,
+  WalletResponseTemplateError,
 } from '@tonconnect/protocol';
-import { CHAIN } from '@tonconnect/protocol';
-import nacl from 'tweetnacl';
 
 import type { ApiEmulationWithFallbackResult, TonTransferParams } from '../chains/ton/types';
 import type {
   ApiAccountWithMnemonic,
-  ApiAccountWithTon,
   ApiAnyDisplayError,
+  ApiDapp,
+  ApiDappConnectionType,
   ApiDappMetadata,
   ApiDappRequest,
   ApiDappTransfer,
@@ -29,37 +32,29 @@ import type {
   ApiTonWallet,
   OnApiUpdate,
 } from '../types';
-import type {
-  ApiTonConnectProof, ConnectEvent, TransactionPayload, TransactionPayloadMessage,
-} from './types';
+import type { ApiTonConnectProof, ConnectEvent, TransactionPayload, TransactionPayloadMessage } from './types';
 import { ApiCommonError, ApiTransactionError } from '../types';
-import { CONNECT_EVENT_ERROR_CODES, SEND_TRANSACTION_ERROR_CODES, SIGN_DATA_ERROR_CODES } from './types';
+import { CHAIN, CONNECT_EVENT_ERROR_CODES, SEND_TRANSACTION_ERROR_CODES } from './types';
 
 import { IS_EXTENSION, TONCOIN } from '../../config';
 import { parseAccountId } from '../../util/account';
 import { areDeepEqual } from '../../util/areDeepEqual';
 import { bigintDivideToNumber } from '../../util/bigint';
+import { fetchJsonWithProxy } from '../../util/fetch';
+import { getDappConnectionUniqueId } from '../../util/getDappConnectionUniqueId';
 import { pick } from '../../util/iteratees';
 import { logDebugError } from '../../util/logs';
-import { fetchJsonMetadata } from '../../util/metadata';
 import safeExec from '../../util/safeExec';
-import { tonConnectGetDeviceInfo } from '../../util/tonConnectEnvironment';
+import { getTonConnectMaxMessages, tonConnectGetDeviceInfo } from '../../util/tonConnectEnvironment';
 import chains from '../chains';
 import { getContractInfo, parsePayloadBase64 } from '../chains/ton';
 import { fetchKeyPair } from '../chains/ton/auth';
-import { DEFAULT_MAX_MESSAGES, LEDGER_MAX_MESSAGES, W5_MAX_MESSAGES } from '../chains/ton/constants';
-import {
-  getIsRawAddress, getWalletPublicKey, toBase64Address, toRawAddress,
-} from '../chains/ton/util/tonCore';
-import {
-  fetchStoredTonAccount,
-  getCurrentAccountId,
-  getCurrentAccountIdOrFail,
-} from '../common/accounts';
+import { getIsRawAddress, getWalletPublicKey, toBase64Address, toRawAddress } from '../chains/ton/util/tonCore';
+import { fetchStoredTonAccount, getCurrentAccountId, getCurrentAccountIdOrFail } from '../common/accounts';
 import { getKnownAddressInfo } from '../common/addresses';
 import { createDappPromise } from '../common/dappPromises';
 import { isUpdaterAlive } from '../common/helpers';
-import { bytesToBase64, hexToBytes, sha256 } from '../common/utils';
+import { bytesToBase64, hexToBytes } from '../common/utils';
 import * as apiErrors from '../errors';
 import { ApiServerError } from '../errors';
 import { callHook } from '../hooks';
@@ -68,18 +63,13 @@ import {
   deleteDapp,
   findLastConnectedAccount,
   getDapp,
-  getDappsByOrigin,
   updateDapp,
 } from '../methods/dapps';
 import { createLocalTransaction } from '../methods/transactions';
 import * as errors from './errors';
 import { UnknownAppError } from './errors';
-import {
-  getTransferActualToAddress,
-  isTransferPayloadDangerous,
-  isValidString,
-  isValidUrl,
-} from './utils';
+import { signDataWithPrivateKey, signTonProofWithPrivateKey } from './signing';
+import { getTransferActualToAddress, isTransferPayloadDangerous, isValidString, isValidUrl } from './utils';
 
 const BLANK_GIF_DATA_URL = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 
@@ -90,10 +80,10 @@ const initPromise = new Promise((resolve) => {
   resolveInit = resolve;
 });
 
-let onPopupUpdate: OnApiUpdate;
+let onUpdate: OnApiUpdate;
 
-export function initTonConnect(_onPopupUpdate: OnApiUpdate) {
-  onPopupUpdate = _onPopupUpdate;
+export function initTonConnect(_onUpdate: OnApiUpdate) {
+  onUpdate = _onUpdate;
   resolveInit();
 }
 
@@ -101,30 +91,24 @@ export async function connect(request: ApiDappRequest, message: ConnectRequest, 
   try {
     await openExtensionPopup(true);
 
-    onPopupUpdate({
+    onUpdate({
       type: 'dappLoading',
       connectionType: 'connect',
       isSse: request && 'sseOptions' in request,
     });
 
     const dappMetadata = await fetchDappMetadata(message.manifestUrl);
-
-    if (!IS_EXTENSION) {
-      request.origin = dappMetadata.origin;
-    }
-
-    const { origin } = await validateRequest(request, true);
-
+    const url = request.url || dappMetadata.url;
     const addressItem = message.items.find(({ name }) => name === 'ton_addr');
     const proofItem = message.items.find(({ name }) => name === 'ton_proof') as TonProofItem | undefined;
     const proof = proofItem ? {
       timestamp: Math.round(Date.now() / 1000),
-      domain: new URL(origin).host,
+      domain: new URL(url).host,
       payload: proofItem.payload,
     } : undefined;
 
     if (!addressItem) {
-      throw new errors.BadRequestError("Missing 'ton_addr'");
+      throw new errors.BadRequestError('Missing \'ton_addr\'');
     }
 
     if (proof && !proof.domain.includes('.')) {
@@ -135,16 +119,19 @@ export async function connect(request: ApiDappRequest, message: ConnectRequest, 
 
     const { promiseId, promise } = createDappPromise();
 
-    const dapp = {
+    const dapp: ApiDapp = {
       ...dappMetadata,
-      origin,
+      url,
       connectedAt: Date.now(),
+      ...(request.isUrlEnsured && { isUrlEnsured: true }),
       ...('sseOptions' in request && {
         sse: request.sseOptions,
       }),
     };
 
-    onPopupUpdate({
+    const uniqueId = getDappConnectionUniqueId(request);
+
+    onUpdate({
       type: 'dappConnect',
       identifier: 'identifier' in request ? request.identifier : undefined,
       promiseId,
@@ -165,13 +152,12 @@ export async function connect(request: ApiDappRequest, message: ConnectRequest, 
 
     accountId = promiseResult!.accountId!;
     request.accountId = accountId;
-    await addDapp(accountId, dapp);
+    await addDapp(accountId, dapp, uniqueId);
 
     const account = await fetchStoredTonAccount(accountId);
     const { address } = account.ton;
 
-    const maxMessages = getMaxMessages(account);
-    const deviceInfo = tonConnectGetDeviceInfo(maxMessages);
+    const deviceInfo = tonConnectGetDeviceInfo(account);
     const items: ConnectItemReply[] = [
       await buildTonAddressReplyItem(accountId, account.ton),
     ];
@@ -181,7 +167,7 @@ export async function connect(request: ApiDappRequest, message: ConnectRequest, 
 
       let proofReplyItem: TonProofItemReplySuccess;
       if (password) {
-        proofReplyItem = await signTonProof(accountId, account as ApiAccountWithMnemonic, password, address, proof!);
+        proofReplyItem = await signTonProof(accountId, account as ApiAccountWithMnemonic, password, address, proof);
       } else {
         proofReplyItem = buildTonProofReplyItem(proof, signature!);
       }
@@ -189,8 +175,8 @@ export async function connect(request: ApiDappRequest, message: ConnectRequest, 
       items.push(proofReplyItem);
     }
 
-    onPopupUpdate({ type: 'updateDapps' });
-    onPopupUpdate({ type: 'dappConnectComplete' });
+    onUpdate({ type: 'updateDapps' });
+    onUpdate({ type: 'dappConnectComplete' });
 
     return {
       event: 'connect',
@@ -204,8 +190,9 @@ export async function connect(request: ApiDappRequest, message: ConnectRequest, 
     logDebugError('tonConnect:connect', err);
 
     safeExec(() => {
-      onPopupUpdate({
+      onUpdate({
         type: 'dappCloseLoading',
+        connectionType: 'connect',
       });
     });
 
@@ -215,19 +202,19 @@ export async function connect(request: ApiDappRequest, message: ConnectRequest, 
 
 export async function reconnect(request: ApiDappRequest, id: number): Promise<ConnectEvent> {
   try {
-    const { origin, accountId } = await validateRequest(request);
+    const { url, accountId } = await ensureRequestParams(request);
 
-    const currentDapp = await getDapp(accountId, origin);
+    const uniqueId = getDappConnectionUniqueId(request);
+    const currentDapp = await getDapp(accountId, url, uniqueId);
     if (!currentDapp) {
       throw new UnknownAppError();
     }
 
-    await updateDapp(accountId, origin, { connectedAt: Date.now() });
+    await updateDapp(accountId, url, uniqueId, { connectedAt: Date.now() });
 
     const account = await fetchStoredTonAccount(accountId);
 
-    const maxMessages = getMaxMessages(account);
-    const deviceInfo = tonConnectGetDeviceInfo(maxMessages);
+    const deviceInfo = tonConnectGetDeviceInfo(account);
     const items: ConnectItemReply[] = [
       await buildTonAddressReplyItem(accountId, account.ton),
     ];
@@ -246,27 +233,16 @@ export async function reconnect(request: ApiDappRequest, id: number): Promise<Co
   }
 }
 
-function getMaxMessages(account: ApiAccountWithTon) {
-  const { type, ton: { version } } = account;
-
-  if (type === 'ledger') {
-    return LEDGER_MAX_MESSAGES;
-  } else if (version === 'W5') {
-    return W5_MAX_MESSAGES;
-  } else {
-    return DEFAULT_MAX_MESSAGES;
-  }
-}
-
 export async function disconnect(
   request: ApiDappRequest,
   message: DisconnectRpcRequest,
 ): Promise<DisconnectRpcResponse> {
   try {
-    const { origin, accountId } = await validateRequest(request);
+    const { url, accountId } = await ensureRequestParams(request);
 
-    await deleteDapp(accountId, origin, true);
-    onPopupUpdate({ type: 'updateDapps' });
+    const uniqueId = getDappConnectionUniqueId(request);
+    await deleteDapp(accountId, url, uniqueId, true);
+    onUpdate({ type: 'updateDapps' });
   } catch (err) {
     logDebugError('tonConnect:disconnect', err);
   }
@@ -281,7 +257,7 @@ export async function sendTransaction(
   message: SendTransactionRpcRequest,
 ): Promise<SendTransactionRpcResponse> {
   try {
-    const { origin, accountId } = await validateRequest(request);
+    const { url, accountId } = await ensureRequestParams(request);
     const { network } = parseAccountId(accountId);
 
     const txPayload = JSON.parse(message.params[0]) as TransactionPayload;
@@ -295,7 +271,7 @@ export async function sendTransaction(
       },
     } = account;
 
-    const maxMessages = getMaxMessages(account);
+    const maxMessages = getTonConnectMaxMessages(account);
 
     if (messages.length > maxMessages) {
       throw new errors.BadRequestError(`Payload contains more than ${maxMessages} messages, which exceeds limit`);
@@ -329,7 +305,7 @@ export async function sendTransaction(
 
     await openExtensionPopup(true);
 
-    onPopupUpdate({
+    onUpdate({
       type: 'dappLoading',
       connectionType: 'sendTransaction',
       accountId,
@@ -345,12 +321,13 @@ export async function sendTransaction(
       throw new errors.BadRequestError(checkResult.error, checkResult.error);
     }
 
-    const dapp = (await getDappsByOrigin(accountId))[origin];
+    const uniqueId = getDappConnectionUniqueId(request);
+    const dapp = (await getDapp(accountId, url, uniqueId))!;
     const transactionsForRequest = await prepareTransactionForRequest(network, messages, checkResult.emulation);
 
     const { promiseId, promise } = createDappPromise();
 
-    onPopupUpdate({
+    onUpdate({
       type: 'dappSendTransactions',
       promiseId,
       accountId,
@@ -360,7 +337,6 @@ export async function sendTransaction(
       vestingAddress,
     });
 
-    // eslint-disable-next-line prefer-const
     const response: string | ApiSignedTransfer[] = await promise;
 
     if (validUntil && validUntil < (Date.now() / 1000)) {
@@ -381,7 +357,7 @@ export async function sendTransaction(
 
       if (submitResult.successNumber > 0) {
         if (submitResult.successNumber < messages.length) {
-          onPopupUpdate({
+          onUpdate({
             type: 'showError',
             error: ApiTransactionError.PartialTransactionFailure,
           });
@@ -425,44 +401,52 @@ export async function sendTransaction(
     };
   } catch (err) {
     logDebugError('tonConnect:sendTransaction', err);
-
-    safeExec(() => {
-      onPopupUpdate({
-        type: 'dappCloseLoading',
-      });
-    });
-
-    let code = SEND_TRANSACTION_ERROR_CODES.UNKNOWN_ERROR;
-    let errorMessage = 'Unhandled error';
-    let displayError: ApiAnyDisplayError | undefined;
-
-    if (err instanceof apiErrors.ApiUserRejectsError) {
-      code = SEND_TRANSACTION_ERROR_CODES.USER_REJECTS_ERROR;
-      errorMessage = err.message;
-    } else if (err instanceof errors.TonConnectError) {
-      code = err.code;
-      errorMessage = err.message;
-      displayError = err.displayError;
-    } else if (err instanceof ApiServerError) {
-      displayError = err.displayError;
-    } else {
-      displayError = ApiCommonError.Unexpected;
-    }
-
-    if (onPopupUpdate && isUpdaterAlive(onPopupUpdate) && displayError) {
-      onPopupUpdate({
-        type: 'showError',
-        error: displayError,
-      });
-    }
-    return {
-      error: {
-        code,
-        message: errorMessage,
-      },
-      id: message.id,
-    };
+    return handleMethodError(err, message.id, 'sendTransaction');
   }
+}
+
+function handleMethodError(
+  err: unknown,
+  messageId: string,
+  connectionType: ApiDappConnectionType,
+): WalletResponseTemplateError {
+  safeExec(() => {
+    onUpdate({
+      type: 'dappCloseLoading',
+      connectionType,
+    });
+  });
+
+  let code = SEND_TRANSACTION_ERROR_CODES.UNKNOWN_ERROR;
+  let errorMessage = 'Unhandled error';
+  let displayError: ApiAnyDisplayError | undefined;
+
+  if (err instanceof apiErrors.ApiUserRejectsError) {
+    code = SEND_TRANSACTION_ERROR_CODES.USER_REJECTS_ERROR;
+    errorMessage = err.message;
+  } else if (err instanceof errors.TonConnectError) {
+    code = err.code;
+    errorMessage = err.message;
+    displayError = err.displayError;
+  } else if (err instanceof ApiServerError) {
+    displayError = err.displayError;
+  } else {
+    displayError = ApiCommonError.Unexpected;
+  }
+
+  if (onUpdate && isUpdaterAlive(onUpdate) && displayError) {
+    onUpdate({
+      type: 'showError',
+      error: displayError,
+    });
+  }
+  return {
+    error: {
+      code,
+      message: errorMessage,
+    },
+    id: messageId,
+  };
 }
 
 async function checkIsHisVestingWallet(network: ApiNetwork, ownerPublicKey: Uint8Array, address: string) {
@@ -474,15 +458,58 @@ async function checkIsHisVestingWallet(network: ApiNetwork, ownerPublicKey: Uint
   return info.contractInfo?.name === 'vesting' && areDeepEqual(ownerPublicKey, publicKey);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function signData(request: ApiDappRequest, message: SignDataRpcRequest) {
-  return {
-    error: {
-      code: SIGN_DATA_ERROR_CODES.METHOD_NOT_SUPPORTED,
-      message: 'Method not supported',
-    },
-    id: message.id,
-  };
+/**
+ * See https://docs.tonconsole.com/academy/sign-data for more details
+ */
+export async function signData(
+  request: ApiDappRequest,
+  message: SignDataRpcRequest,
+): Promise<SignDataRpcResponse> {
+  try {
+    const { url, accountId } = await ensureRequestParams(request);
+    const account = await fetchStoredTonAccount(accountId);
+
+    if (account.type === 'view') throw new errors.MethodNotSupportedError('Not supported by view-only accounts');
+    if (account.type === 'ledger') throw new errors.MethodNotSupportedError('Not supported by Ledger');
+
+    await openExtensionPopup(true);
+
+    onUpdate({
+      type: 'dappLoading',
+      connectionType: 'signData',
+      accountId,
+      isSse: Boolean('sseOptions' in request && request.sseOptions),
+    });
+
+    const { promiseId, promise } = createDappPromise();
+    const uniqueId = getDappConnectionUniqueId(request);
+    const dapp = (await getDapp(accountId, url, uniqueId))!;
+    const payloadToSign = JSON.parse(message.params[0]) as SignDataPayload;
+
+    onUpdate({
+      type: 'dappSignData',
+      promiseId,
+      accountId,
+      dapp,
+      payloadToSign,
+    });
+
+    const password: string = await promise;
+
+    return {
+      result: await performSignData(
+        accountId,
+        account,
+        dapp,
+        payloadToSign,
+        password,
+      ),
+      id: message.id,
+    };
+  } catch (err) {
+    logDebugError('tonConnect:signData', err);
+    return handleMethodError(err, message.id, 'signData');
+  }
 }
 
 async function checkTransactionMessages(
@@ -599,45 +626,7 @@ async function signTonProof(
   proof: ApiTonConnectProof,
 ): Promise<TonProofItemReplySuccess> {
   const keyPair = await fetchKeyPair(accountId, password, account);
-  const { timestamp, domain, payload } = proof;
-
-  const timestampBuffer = Buffer.allocUnsafe(8);
-  timestampBuffer.writeBigInt64LE(BigInt(timestamp));
-
-  const domainBuffer = Buffer.from(domain);
-  const domainLengthBuffer = Buffer.allocUnsafe(4);
-  domainLengthBuffer.writeInt32LE(domainBuffer.byteLength);
-
-  const address = Address.parse(walletAddress);
-
-  const addressWorkchainBuffer = Buffer.allocUnsafe(4);
-  addressWorkchainBuffer.writeInt32BE(address.workChain);
-
-  const addressBuffer = Buffer.concat([
-    addressWorkchainBuffer,
-    address.hash,
-  ]);
-
-  const messageBuffer = Buffer.concat([
-    Buffer.from('ton-proof-item-v2/', 'utf8'),
-    addressBuffer,
-    domainLengthBuffer,
-    domainBuffer,
-    timestampBuffer,
-    Buffer.from(payload),
-  ]);
-
-  const bufferToSign = Buffer.concat([
-    Buffer.from('ffff', 'hex'),
-    Buffer.from('ton-connect', 'utf8'),
-    Buffer.from(await sha256(messageBuffer)),
-  ]);
-
-  const signature = nacl.sign.detached(
-    Buffer.from(await sha256(bufferToSign)),
-    keyPair!.secretKey,
-  );
-
+  const signature = await signTonProofWithPrivateKey(walletAddress, keyPair!.secretKey, proof);
   return buildTonProofReplyItem(proof, bytesToBase64(signature));
 }
 
@@ -659,18 +648,43 @@ function buildTonProofReplyItem(proof: ApiTonConnectProof, signature: string): T
   };
 }
 
-export async function fetchDappMetadata(manifestUrl: string, origin?: string): Promise<ApiDappMetadata> {
-  try {
-    const data = await fetchJsonMetadata(manifestUrl);
+async function performSignData(
+  accountId: string,
+  account: ApiAccountWithMnemonic,
+  dapp: ApiDapp,
+  payloadToSign: SignDataPayload,
+  password: string,
+): Promise<SignDataRpcResponseSuccess['result']> {
+  const { address } = account.ton;
+  const timestamp = Math.floor(Date.now() / 1000);
+  const domain = new URL(dapp.url).host;
+  const keyPair = (await fetchKeyPair(accountId, password, account))!;
+  const signature = await signDataWithPrivateKey(
+    address,
+    timestamp,
+    domain,
+    payloadToSign,
+    keyPair.secretKey,
+  );
 
-    const { url, name, iconUrl } = await data;
+  return {
+    signature: bytesToBase64(signature),
+    address,
+    timestamp,
+    domain,
+    payload: payloadToSign,
+  };
+}
+
+export async function fetchDappMetadata(manifestUrl: string): Promise<ApiDappMetadata> {
+  try {
+    const { url, name, iconUrl } = await fetchJsonWithProxy(manifestUrl);
     const safeIconUrl = (iconUrl.startsWith('data:') || iconUrl === '') ? BLANK_GIF_DATA_URL : iconUrl;
     if (!isValidUrl(url) || !isValidString(name) || !isValidUrl(safeIconUrl)) {
       throw new Error('Invalid data');
     }
 
     return {
-      origin: origin ?? new URL(url).origin,
       url,
       name,
       iconUrl: safeIconUrl,
@@ -682,29 +696,31 @@ export async function fetchDappMetadata(manifestUrl: string, origin?: string): P
   }
 }
 
-async function validateRequest(request: ApiDappRequest, skipConnection = false) {
-  const { origin } = request;
-  if (!origin) {
-    throw new errors.BadRequestError('Invalid origin');
+async function ensureRequestParams(
+  request: ApiDappRequest,
+): Promise<ApiDappRequest & { url: string; accountId: string }> {
+  if (!request.url) {
+    throw new errors.BadRequestError('Missing `url` in request');
   }
 
-  let accountId = '';
   if (request.accountId) {
-    accountId = request.accountId;
-  } else if (!skipConnection) {
-    const { network } = parseAccountId(await getCurrentAccountIdOrFail());
-    const lastAccountId = await findLastConnectedAccount(network, origin);
-    if (!lastAccountId) {
-      throw new errors.BadRequestError('The connection is outdated, try relogin');
-    }
-    accountId = lastAccountId;
+    return request as ApiDappRequest & { url: string; accountId: string };
   }
 
-  return { origin, accountId };
+  const { network } = parseAccountId(await getCurrentAccountIdOrFail());
+  const lastAccountId = await findLastConnectedAccount(network, request.url);
+  if (!lastAccountId) {
+    throw new errors.BadRequestError('The connection is outdated, try relogin');
+  }
+
+  return {
+    ...request,
+    accountId: lastAccountId,
+  } as ApiDappRequest & { url: string; accountId: string };
 }
 
 async function openExtensionPopup(force?: boolean) {
-  if (!IS_EXTENSION || (!force && onPopupUpdate && isUpdaterAlive(onPopupUpdate))) {
+  if (!IS_EXTENSION || (!force && onUpdate && isUpdaterAlive(onUpdate))) {
     return false;
   }
 

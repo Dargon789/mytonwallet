@@ -79,8 +79,7 @@ function SettingsAssets({
 
   const lang = useLang();
 
-  // eslint-disable-next-line no-null/no-null
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>();
 
   useHistoryBack({ isActive, onBack });
 
@@ -111,9 +110,9 @@ function SettingsAssets({
 
   const [localBaseCurrency, setLocalBaseCurrency] = useState(baseCurrency);
 
-  const handleBaseCurrencyChange = useLastCallback((currency: string) => {
-    setLocalBaseCurrency(currency as ApiBaseCurrency);
-    changeBaseCurrency({ currency: currency as ApiBaseCurrency });
+  const handleBaseCurrencyChange = useLastCallback((currency: ApiBaseCurrency) => {
+    setLocalBaseCurrency(currency);
+    changeBaseCurrency({ currency });
   });
 
   const {

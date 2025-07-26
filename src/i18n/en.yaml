@@ -104,7 +104,7 @@ Are you sure you want to remove this address from your saved ones?: Are you sure
 You will be able to save it again via Transaction Info with this address.: You will be able to save it again via Transaction Info with this address.
 Address removed from saved: Address removed from saved
 Warning!: Warning!
-Log Out: Remove Wallet
+Log Out: Log Out
 $logout_without_backup_warning: You have not backed up this wallet. If you remove it now, you will lose access to your tokens and NFTs.
 $logout_accounts_without_backup_warning: You have not backed up %links%. If you proceed, you will lose access to your tokens and NFTs.
 $logout_warning: This will remove the current wallet from the app. Make sure you have your **secret words** backed up.
@@ -128,6 +128,7 @@ Hide Tiny Transfers: Hide Tiny Transfers
 Toggle Hide Tiny Transfers: Toggle Hide Tiny Transfers
 Network: Network
 Developer Options: Developer Options
+All Wallet Versions: All Wallet Versions
 Confirmation: Confirmation
 Signing Data: Signing Data
 Contract Initialization Data: Contract Initialization Data
@@ -163,6 +164,7 @@ Received: Received
 Sent: Sent
 $transaction_from: from %address%
 $transaction_to: to %address%
+$transaction_on: on %address%
 Wallet is not backed up: Wallet is not backed up
 Testnet Version: Testnet Version
 Error reading clipboard: Error reading clipboard
@@ -177,6 +179,13 @@ Incorrect address.: Incorrect address.
 Paste: Paste
 Insufficient balance: Insufficient balance
 Insufficient Balance: Insufficient Balance
+$seed_phrase_scam_warning: |
+  **Warning!** You have recently imported a wallet that does not have enough funds to cover the fees for token withdrawal.
+
+  This resembles a common scam where you're encouraged to deposit your own funds to cover fees.
+
+  **Do not deposit your own funds, as you may lose them!** Learn more about this and other scams in our %help_center_link%.
+$help_center_prepositional: Help Center
 Optional: Optional
 $send_token_symbol: Send %1$s
 Is it all ok?: Is it all ok?
@@ -267,6 +276,7 @@ $dapp_can_view_balance: "%dappname% will be able to view wallet address and bala
 Send Transaction: Send Transaction
 Payload: Payload
 $many_transactions:
+  zeroValue: No Transactions
   oneValue: "%1$d Transaction"
   otherValue: "%1$d Transactions"
 Total Amount: Total Amount
@@ -610,6 +620,7 @@ Unfrozen: Unfrozen
 Missed: Missed
 Frozen: Frozen
 until %date%: until %date%
+Until %date%: Until %date%
 "%volume% in %amount% parts": "%volume% in %amount% parts"
 Unfreeze: Unfreeze
 Claim: Claim
@@ -701,7 +712,7 @@ Best: Best
 Use Best Rate: Use Best Rate
 Switch to %dex_name%: Switch to %dex_name%
 Built-in DEX Aggregator: Built-in DEX Aggregator
-Add tokens: Add tokens
+Add Tokens: Add Tokens
 No tokens yet: No tokens yet
 $no_tokens_description: Receive tokens from another wallet, or simply enable preferred tokens in the settings for monitoring.
 Exchange Rate: Exchange Rate
@@ -795,6 +806,9 @@ Bidding at NFT Auction: Bidding at NFT Auction
 NFT Bought: NFT Bought
 Buying NFT: Buying NFT
 $buy_nft_action: Buy NFT
+NFT Sold: NFT Sold
+Selling NFT: Selling NFT
+$sell_nft_action: Sell NFT
 Receiving: Receiving
 $receive_action: Receive
 Change Palette: Change Palette
@@ -830,15 +844,87 @@ App will not ask for signature for %1$d minutes after last entry.: The app will 
 Remember for %1$d minutes: Remember for %1$d minutes
 Preview: Preview
 $preview_not_guaranteed: Preview result **is not guaranteed **and **can be forged **by the service.
+Unverified Source: Unverified Source
+$reopen_in_iab: For your safety, please re-open this dapp in %browserButton%.
+MyTonWallet Browser: MyTonWallet Browser
 Exit all wallets: Exit all wallets
 Can't confirm?: Can't confirm?
 $safe_staking_ethena_description1: Staking is fully decentralized and operated by **Ethena’s official** audited liquid staking **smart contracts**.
 $safe_staking_ethena_description2: The deposited USDe stake is used in Ethena’s **trading and investment strategies** to yield rewards automatically and transparently.
-$safe_staking_ethena_description3: You can **withdraw** your stake with rewards at any time, and it will be returned to your account **within 7 days**, according to Ethena’s standard withdrawal period.
+$safe_staking_ethena_description3: You can **withdraw** your stake with rewards at any time, and it will be returned to your account **in 7 days**, according to Ethena’s standard withdrawal period.
 Unstake %amount%: Unstake %amount%
 Request Unstaking: Request Unstaking
 $unstaking_when_receive_ethena: You will be able to receive your unstaked deposit in **7 days**.
 Coins have been unstaked!: Coins have been unstaked!
 Confirm Upgrading: Confirm Upgrading
 How does it work?: How does it work?
+Multisend: Multisend
+Renew All: Renew All
+Renew: Renew
+Renew Domain: Renew Domain
+Renew Domains: Renew Domains
+Some domains are about to expire: Some domains are about to expire
+$domain_expire: "**%domain%** expires %days%"
 '%token% Staking': '%token% Staking'
+Add Tab: Add Tab
+Remove Tab: Remove Tab
+Failed to process domain operation. Please try again.: Failed to process domain operation. Please try again.
+$domains_amount %1$d:
+  zeroValue: No domains
+  oneValue: "%1$d domain"
+  otherValue: "%1$d domains"
+Stake: Stake
+Manage Tokens: Manage Tokens
+Claim Rewards: Claim Rewards
+Configure DNS: Configure DNS
+Link to Wallet: Link to Wallet
+Change Wallet: Change Wallet
+Change Linked Wallet: Change Linked Wallet
+Domain has been renewed!: Domain has been renewed!
+Domains have been renewed!: Domains have been renewed!
+Linked Wallet: Linked Wallet
+Domain has been linked!: Domain has been linked!
+Link: Link
+Confirm Renewing: Confirm Renewing
+Confirm Linking: Confirm Linking
+$domains_expire:
+  zeroValue: "No domains expires %days%"
+  oneValue: "**%domain% domain** expires %days%"
+  otherValue: "**%domain% domains** expire %days%"
+$in_days:
+  zeroValue: today
+  oneValue: tomorrow
+  otherValue: in %1$d days
+$domain_was_expired: "**%domain%** is expired"
+$domains_was_expired:
+  zeroValue: "No domains is expired"
+  oneValue: "**%domain% domain** is expired"
+  otherValue: "**%domain% domains** are expired"
+Reload: Reload
+Copy Link: Copy Link
+Check eligibility for max APY: Check eligibility for max APY
+Check eligibility: Check eligibility
+$expired_many: Expired
+$expires_in %days%: Expires %days%
+Message: Message
+Binary Data: Binary Data
+The binary data content is unclear. Sign it only if you trust the service.: The binary data content is unclear. Sign it only if you trust the service.
+Cell Schema: Cell Schema
+Cell Data: Cell Data
+Sign Data: Sign Data
+Please confirm signature on your Ledger: Please confirm signature on your Ledger
+Utilities: Utilities
+Games: Games
+Entertainment: Entertainment
+Toggle to landscape layout: Toggle to landscape layout
+Toggle to portrait layout: Toggle to portrait layout
+Attributes: Attributes
+Show All: Show All
+Description: Description
+No additional data.: No additional data.
+Domain was copied!: Domain was copied!
+$storage_cleared_title: Application Storage Cleared
+$storage_cleared_message: |
+  Your wallet data has been cleared due to browser-related or disk space issues. Please log out from all wallets and then re-import them manually using your secret words.
+
+  If you need assistance, please contact %support_link%.

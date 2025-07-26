@@ -93,10 +93,18 @@ function Swap({
   });
 
   function renderIcon() {
+    let statusClass: string | undefined = styles.colorSwap;
+    let waitingIconName: keyof typeof ANIMATED_STICKERS_PATHS.light.preview = 'iconClockGreen';
+    if (isError) {
+      statusClass = styles.colorNegative;
+      waitingIconName = 'iconClockRed';
+    } else if (isHold) {
+      statusClass = undefined;
+      waitingIconName = 'iconClockGray';
+    }
+
     return (
-      <div className={buildClassName(styles.icon, styles.iconSwap)} aria-hidden>
-        {fromToken && <TokenIcon token={fromToken} size="x-middle" className={styles.iconFromToken} />}
-        {toToken && <TokenIcon token={toToken} size="x-middle" className={styles.iconToToken} />}
+      <i className={buildClassName('icon-swap', styles.icon, statusClass)} aria-hidden>
         {isPending && (
           <AnimatedIconWithPreview
             play
@@ -105,12 +113,12 @@ function Swap({
             nonInteractive
             noLoop={false}
             forceOnHeavyAnimation
-            tgsUrl={ANIMATED_STICKERS_PATHS[appTheme].iconClockGray}
-            previewUrl={ANIMATED_STICKERS_PATHS[appTheme].preview.iconClockGray}
+            tgsUrl={ANIMATED_STICKERS_PATHS[appTheme][waitingIconName]}
+            previewUrl={ANIMATED_STICKERS_PATHS[appTheme].preview[waitingIconName]}
           />
         )}
         {isError && <i className={buildClassName(styles.iconError, 'icon-close-filled')} aria-hidden />}
-      </div>
+      </i>
     );
   }
 
@@ -124,7 +132,7 @@ function Swap({
         rows={2}
         cellSize={8}
         align="right"
-        contentClassName={buildClassName(styles.amount, styles.swapAmount)}
+        contentClassName={styles.amount}
       >
         <span className={buildClassName(styles.swapSell, statusClass)}>
           {formatCurrencyExtended(
@@ -144,11 +152,13 @@ function Swap({
             true,
           )}
         </span>
+        {fromToken && <TokenIcon token={fromToken} size="x-small" className={styles.amountTokenIcon} />}
+        {toToken && <TokenIcon token={toToken} size="x-small" className={styles.amountTokenIcon} />}
       </SensitiveData>
     );
   }
 
-  function renderErrorMessage() {
+  function renderStatusAndDate() {
     if (isFuture) {
       return <div />;
     }
@@ -174,8 +184,10 @@ function Swap({
     }
 
     return (
-      <div className={buildClassName(isError && styles.swapError)}>
-        {date}{state ? `${WHOLE_PART_DELIMITER}∙${WHOLE_PART_DELIMITER}${state}` : ''}
+      <div className={styles.date}>
+        {state && <span className={styles.subheaderHighlight}>{state}</span>}
+        {state && `${WHOLE_PART_DELIMITER}∙${WHOLE_PART_DELIMITER}`}
+        {date}
       </div>
     );
   }
@@ -198,13 +210,13 @@ function Swap({
     const [priceWhole, priceFraction] = rate.price.split('.');
 
     return (
-      <span className={styles.address}>
+      <div>
         {rate.firstCurrencySymbol}{' ≈ '}
-        <span className={styles.addressValue}>
+        <span className={styles.subheaderHighlight}>
           {priceWhole}
           <small>.{priceFraction}{' '}{rate.secondCurrencySymbol}</small>
         </span>
-      </span>
+      </div>
     );
   }
 
@@ -228,7 +240,7 @@ function Swap({
         {renderAmount()}
       </div>
       <div className={styles.subheader}>
-        {renderErrorMessage()}
+        {renderStatusAndDate()}
         {renderCurrency()}
       </div>
     </Button>

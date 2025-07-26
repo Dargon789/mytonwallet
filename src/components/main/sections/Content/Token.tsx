@@ -1,9 +1,10 @@
-import React, { memo, useMemo } from '../../../../lib/teact/teact';
+import React, { type ElementRef, memo, useMemo, useRef } from '../../../../lib/teact/teact';
 
-import type { ApiBaseCurrency, ApiYieldType } from '../../../../api/types';
-import type { StakingStateStatus } from '../../../../global/helpers/staking';
+import type { ApiBaseCurrency, ApiStakingState, ApiYieldType } from '../../../../api/types';
 import type { AppTheme, UserToken } from '../../../../global/types';
 import type { LangFn } from '../../../../hooks/useLang';
+import type { Layout } from '../../../../hooks/useMenuPosition';
+import type { StakingStateStatus } from '../../../../util/staking';
 
 import { ANIMATED_STICKER_TINY_ICON_PX, IS_CORE_WALLET, TOKEN_WITH_LABEL, TON_USDE } from '../../../../config';
 import { Big } from '../../../../lib/big.js';
@@ -16,23 +17,28 @@ import getPseudoRandomNumber from '../../../../util/getPseudoRandomNumber';
 import { round } from '../../../../util/round';
 import { ANIMATED_STICKERS_PATHS } from '../../../ui/helpers/animatedAssets';
 
+import { useDeviceScreen } from '../../../../hooks/useDeviceScreen';
 import useLang from '../../../../hooks/useLang';
 import useLastCallback from '../../../../hooks/useLastCallback';
 import useShowTransition from '../../../../hooks/useShowTransition';
+import useTokenContextMenu from './hooks/useTokenContextMenu';
 
 import TokenIcon from '../../../common/TokenIcon';
 import AnimatedCounter from '../../../ui/AnimatedCounter';
 import AnimatedIconWithPreview from '../../../ui/AnimatedIconWithPreview';
 import Button from '../../../ui/Button';
+import DropdownMenu from '../../../ui/DropdownMenu';
+import MenuBackdrop from '../../../ui/MenuBackdrop';
 import SensitiveData from '../../../ui/SensitiveData';
 
 import styles from './Token.module.scss';
 
 interface OwnProps {
+  ref?: ElementRef<HTMLButtonElement>;
   token: UserToken;
-  stakingId?: string;
   // Undefined means that it's not a staked token
   stakingStatus?: StakingStateStatus;
+  stakingState?: ApiStakingState;
   vestingStatus?: 'frozen' | 'readyToUnfreeze';
   unfreezeEndDate?: number;
   amount?: string;
@@ -45,17 +51,24 @@ interface OwnProps {
   baseCurrency?: ApiBaseCurrency;
   appTheme: AppTheme;
   withChainIcon?: boolean;
+  withContextMenu?: boolean;
   isSensitiveDataHidden?: true;
+  isSwapDisabled?: boolean;
+  isStakingAvailable?: boolean;
+  isViewMode?: boolean;
   onClick: (slug: string) => void;
 }
 
 const UNFREEZE_DANGER_DURATION = 7 * DAY;
+const CONTEXT_MENU_VERTICAL_SHIFT_PX = 4;
+export const OPEN_CONTEXT_MENU_CLASS_NAME = 'open-context-menu';
 
 function Token({
+  ref,
   token,
   amount,
-  stakingId,
   stakingStatus,
+  stakingState,
   vestingStatus,
   unfreezeEndDate,
   annualYield,
@@ -66,7 +79,11 @@ function Token({
   isActive,
   baseCurrency,
   withChainIcon,
+  withContextMenu,
   isSensitiveDataHidden,
+  isStakingAvailable,
+  isSwapDisabled,
+  isViewMode,
   yieldType,
   onClick,
 }: OwnProps) {
@@ -80,7 +97,10 @@ function Token({
   } = token;
 
   const lang = useLang();
+  const { isPortrait } = useDeviceScreen();
 
+  let buttonRef = useRef<HTMLButtonElement>();
+  const menuRef = useRef<HTMLDivElement>();
   const isVesting = Boolean(vestingStatus?.length);
   const renderedAmount = amount ?? toDecimal(tokenAmount, decimals, true);
   const value = Big(renderedAmount).mul(price).toString();
@@ -88,20 +108,58 @@ function Token({
   const changeValue = Math.abs(round(calcChangeValue(Number(value), change), 4));
   const changePercent = Math.abs(round(change * 100, 2));
   const withYield = !IS_CORE_WALLET && annualYield !== undefined;
-  const fullClassName = buildClassName(styles.container, isActive && styles.active, classNames);
   const shortBaseSymbol = getShortCurrencySymbol(baseCurrency);
   const withLabel = Boolean(!isVesting && TOKEN_WITH_LABEL[slug]);
+  const stakingId = stakingState?.id;
   const name = getTokenName(lang, token, !!stakingId);
   const amountCols = useMemo(() => getPseudoRandomNumber(4, 12, name), [name]);
   const fiatAmountCols = 5 + (amountCols % 6);
+  if (ref) {
+    buttonRef = ref;
+  }
 
   const {
     shouldRender: shouldRenderYield,
-    transitionClassNames: renderYieldClassNames,
-  } = useShowTransition(withYield);
+    ref: yieldRef,
+  } = useShowTransition<HTMLSpanElement>({
+    isOpen: withYield,
+    withShouldRender: true,
+  });
 
   const handleClick = useLastCallback(() => {
     onClick(stakingId ?? slug);
+  });
+
+  const getTriggerElement = useLastCallback(() => buttonRef.current);
+  const getRootElement = useLastCallback(() => document.body);
+  const getMenuElement = useLastCallback(() => menuRef.current);
+  const getLayout = useLastCallback((): Layout => ({
+    withPortal: true,
+    doNotCoverTrigger: isPortrait,
+    // The shift is needed to prevent the mouse cursor from highlighting the first menu item
+    topShiftY: !isPortrait ? CONTEXT_MENU_VERTICAL_SHIFT_PX : undefined,
+    preferredPositionX: 'left',
+  }));
+
+  const {
+    isContextMenuOpen,
+    isContextMenuShown,
+    contextMenuAnchor,
+    items,
+    isBackdropRendered,
+    handleBeforeContextMenu,
+    handleContextMenu,
+    handleContextMenuClose,
+    handleContextMenuHide,
+    handleMenuItemSelect,
+  } = useTokenContextMenu(buttonRef, {
+    token,
+    isPortrait,
+    withContextMenu,
+    isStakingAvailable,
+    isSwapDisabled,
+    isViewMode,
+    stakingState,
   });
 
   function renderYield() {
@@ -109,11 +167,10 @@ function Token({
       styles.label,
       styles.apyLabel,
       stakingStatus && styles.apyLabel_staked,
-      renderYieldClassNames,
     );
 
     return (
-      <span className={labelClassName}>
+      <span ref={yieldRef} className={labelClassName}>
         {yieldType} {annualYield}%
       </span>
     );
@@ -164,9 +221,22 @@ function Token({
     );
   }
 
+  const fullClassName = buildClassName(
+    styles.button,
+    isActive && styles.active,
+    isContextMenuOpen && OPEN_CONTEXT_MENU_CLASS_NAME,
+  );
+
   function renderInvestorView() {
     return (
-      <Button className={fullClassName} isSimple style={style} onClick={handleClick}>
+      <Button
+        ref={buttonRef}
+        isSimple
+        className={fullClassName}
+        onMouseDown={handleBeforeContextMenu}
+        onContextMenu={handleContextMenu}
+        onClick={handleClick}
+      >
         <TokenIcon
           size="large"
           token={token}
@@ -237,7 +307,9 @@ function Token({
               cols={fiatAmountCols}
               rows={2}
               cellSize={8}
-              align="right" className={buildClassName(styles.change, changeClassName)}>
+              align="right"
+              className={buildClassName(styles.change, changeClassName)}
+            >
               {renderChangeIcon()}<AnimatedCounter text={String(changePercent)} />%
               <i className={styles.dot} aria-hidden />
               <AnimatedCounter text={formatCurrency(changeValue, shortBaseSymbol, undefined, true)} />
@@ -253,7 +325,14 @@ function Token({
     const canRenderYield = annualYield !== undefined;
 
     return (
-      <Button className={fullClassName} style={style} onClick={handleClick} isSimple>
+      <Button
+        ref={buttonRef}
+        isSimple
+        className={fullClassName}
+        onMouseDown={handleBeforeContextMenu}
+        onContextMenu={handleContextMenu}
+        onClick={handleClick}
+      >
         <TokenIcon
           token={token}
           size="large"
@@ -304,7 +383,8 @@ function Token({
             cols={amountCols}
             rows={2}
             cellSize={8}
-            align="right" className={buildClassName(
+            align="right"
+            className={buildClassName(
               styles.secondaryValue,
               stakingStatus && styles.secondaryValue_staked,
               isVesting && styles.secondaryValue_vesting,
@@ -329,7 +409,35 @@ function Token({
     );
   }
 
-  return isInvestorView ? renderInvestorView() : renderDefaultView();
+  return (
+    <div className={buildClassName(styles.container, classNames)} style={style}>
+      <MenuBackdrop
+        isMenuOpen={isBackdropRendered}
+        contentRef={buttonRef}
+        contentClassName={styles.wrapperVisible}
+      />
+      {isInvestorView ? renderInvestorView() : renderDefaultView()}
+      {withContextMenu && isContextMenuShown && (
+        <DropdownMenu
+          ref={menuRef}
+          withPortal
+          shouldTranslateOptions
+          isOpen={isContextMenuOpen}
+          items={items}
+          menuAnchor={contextMenuAnchor}
+          bubbleClassName={styles.menu}
+          fontIconClassName={styles.menuIcon}
+          getTriggerElement={getTriggerElement}
+          getRootElement={getRootElement}
+          getMenuElement={getMenuElement}
+          getLayout={getLayout}
+          onSelect={handleMenuItemSelect}
+          onClose={handleContextMenuClose}
+          onCloseAnimationEnd={handleContextMenuHide}
+        />
+      )}
+    </div>
+  );
 }
 
 function getTokenName(lang: LangFn, token: UserToken, isStaking: boolean): string {

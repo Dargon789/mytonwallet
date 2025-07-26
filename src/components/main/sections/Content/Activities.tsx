@@ -5,7 +5,7 @@ import { setExtraStyles } from '../../../../lib/teact/teact-dom';
 import { getActions, withGlobal } from '../../../../global';
 
 import type {
-  ApiActivity, ApiNft, ApiStakingState, ApiSwapAsset, ApiTokenWithPrice,
+  ApiActivity, ApiBaseCurrency, ApiNft, ApiStakingState, ApiSwapAsset, ApiTokenWithPrice,
 } from '../../../../api/types';
 import type { Account, SavedAddress, Theme } from '../../../../global/types';
 import { ContentTab } from '../../../../global/types';
@@ -69,8 +69,8 @@ type StateProps = {
   isMainHistoryEndReached?: boolean;
   isHistoryEndReachedBySlug?: Record<string, boolean>;
   alwaysShownSlugs?: string[];
-  activitiesUpdateStartedAt?: number;
   theme: Theme;
+  baseCurrency?: ApiBaseCurrency;
   isFirstTransactionsLoaded?: boolean;
   isSensitiveDataHidden?: true;
   stakingStateBySlug?: Record<string, ApiStakingState>;
@@ -109,8 +109,8 @@ function Activities({
   isMainHistoryEndReached,
   isHistoryEndReachedBySlug,
   alwaysShownSlugs,
-  activitiesUpdateStartedAt = 0,
   theme,
+  baseCurrency,
   isFirstTransactionsLoaded,
   isSensitiveDataHidden,
   stakingStateBySlug,
@@ -124,9 +124,8 @@ function Activities({
   const lang = useLang();
   const { isLandscape } = useDeviceScreen();
 
-  // eslint-disable-next-line no-null/no-null
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isUpdating = useUpdateIndicator(activitiesUpdateStartedAt);
+  const containerRef = useRef<HTMLDivElement>();
+  const isUpdating = useUpdateIndicator('activitiesUpdateStartedAt');
 
   const appTheme = useAppTheme(theme);
 
@@ -355,6 +354,7 @@ function Activities({
             savedAddresses={savedAddresses}
             withChainIcon={isMultichainAccount}
             accounts={accounts}
+            baseCurrency={baseCurrency}
             onClick={handleActivityClick}
           />
         </div>
@@ -447,8 +447,8 @@ export default memo(
         isHistoryEndReachedBySlug,
         currentActivityId: accountState?.currentActivityId,
         alwaysShownSlugs: accountSettings?.alwaysShownSlugs,
-        activitiesUpdateStartedAt: accountState?.activitiesUpdateStartedAt,
         theme: global.settings.theme,
+        baseCurrency: global.settings.baseCurrency,
         isFirstTransactionsLoaded,
         stakingStateBySlug,
         isSensitiveDataHidden: global.settings.isSensitiveDataHidden,

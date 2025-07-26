@@ -1,18 +1,17 @@
 import { StatusCodes } from '@ledgerhq/errors';
 import TransportWebHID from '@ledgerhq/hw-transport-webhid';
 import TransportWebUSB from '@ledgerhq/hw-transport-webusb';
+import type { HIDTransport } from '@mytonwallet/capacitor-usb-hid';
 import type { StateInit } from '@ton/core';
 import { loadStateInit } from '@ton/core';
 import type { TonPayloadFormat } from '@ton-community/ton-ledger';
 import { KNOWN_JETTONS, parseMessage, TonTransport } from '@ton-community/ton-ledger';
-import type { HIDTransport } from 'mtw-capacitor-usb-hid';
+import type { ICapacitorUSBDevice } from '@mytonwallet/capacitor-usb-hid/dist/esm/definitions';
 import { Address } from '@ton/core/dist/address/Address';
 import { Builder } from '@ton/core/dist/boc/Builder';
 import { Cell } from '@ton/core/dist/boc/Cell';
 import { SendMode } from '@ton/core/dist/types/SendMode';
-import type { ICapacitorUSBDevice } from 'mtw-capacitor-usb-hid/dist/esm/definitions';
 
-import type { Workchain } from '../../api/chains/ton';
 import type { ApiSubmitTransferOptions } from '../../api/methods/types';
 import type { ApiTonConnectProof } from '../../api/tonConnect/types';
 import type {
@@ -45,6 +44,7 @@ import {
   UNSTAKE_COMMENT,
   WALLET_IS_BOUNCEABLE,
   WORKCHAIN,
+  Workchain,
 } from '../../api/chains/ton/constants';
 import {
   buildJettonClaimPayload,
@@ -67,12 +67,13 @@ import { pause } from '../schedulers';
 import { IS_ANDROID_APP } from '../windowEnvironment';
 import { isLedgerConnectionBroken, isValidLedgerComment } from './utils';
 
+import { DnsItem } from '../../api/chains/ton/contracts/DnsItem';
 import { TsUSDeWallet } from '../../api/chains/ton/contracts/Ethena/TsUSDeWallet';
 import { StakingPool } from '../../api/chains/ton/contracts/JettonStaking/StakingPool';
 
 type BleConnectorClass = typeof import('./bleConnector').BleConnector;
-type HIDTransportClass = typeof import('mtw-capacitor-usb-hid/dist/esm').HIDTransport;
-type ListLedgerDevicesFunction = typeof import('mtw-capacitor-usb-hid/dist/esm').listLedgerDevices;
+type HIDTransportClass = typeof import('@mytonwallet/capacitor-usb-hid/dist/esm').HIDTransport;
+type ListLedgerDevicesFunction = typeof import('@mytonwallet/capacitor-usb-hid/dist/esm').listLedgerDevices;
 
 type TransactionParams = {
   to: Address;
@@ -117,16 +118,18 @@ const knownJettonAddresses = KNOWN_JETTONS.map(
 
 let transport: TransportWebHID | TransportWebUSB | BleTransport | HIDTransport | undefined;
 let tonTransport: TonTransport | undefined;
-let isHidSupported = false;
-let isWebUsbSupported = false;
-let isBluetoothSupported = false;
+let transportSupport: {
+  hid: boolean;
+  webUsb: boolean;
+  bluetooth: boolean;
+} | undefined;
 let currentLedgerTransport: LedgerTransport | undefined;
 
 let hidImportPromise: Promise<{
   transport: HIDTransportClass;
   listLedgerDevices: ListLedgerDevicesFunction;
-}>;
-let bleImportPromise: Promise<BleConnectorClass>;
+}> | undefined;
+let bleImportPromise: Promise<BleConnectorClass> | undefined;
 let BleConnector: BleConnectorClass;
 let MtwHidTransport: HIDTransportClass;
 let listLedgerDevices: ListLedgerDevicesFunction;
@@ -148,7 +151,7 @@ async function ensureHidTransport() {
   if (!IS_ANDROID_APP) return undefined;
 
   if (!hidImportPromise) {
-    hidImportPromise = import('mtw-capacitor-usb-hid/dist/esm').then((module) => {
+    hidImportPromise = import('@mytonwallet/capacitor-usb-hid/dist/esm').then((module) => {
       return {
         transport: module.HIDTransport,
         listLedgerDevices: module.listLedgerDevices,
@@ -168,29 +171,34 @@ void ensureHidTransport();
 export async function detectAvailableTransports() {
   await ensureBleConnector();
   await ensureHidTransport();
-  [isHidSupported, isBluetoothSupported, isWebUsbSupported] = await Promise.all([
+  const [hid, bluetooth, webUsb] = await Promise.all([
     IS_ANDROID_APP ? MtwHidTransport.isSupported() : TransportWebHID.isSupported(),
-    BleConnector ? BleConnector.isSupported() : Promise.resolve(false),
+    BleConnector ? BleConnector.isSupported() : false,
     TransportWebUSB.isSupported(),
   ]);
 
+  transportSupport = { hid, bluetooth, webUsb };
+
   return {
-    isUsbAvailable: isHidSupported || isWebUsbSupported,
-    isBluetoothAvailable: isBluetoothSupported,
+    isUsbAvailable: hid || webUsb,
+    isBluetoothAvailable: bluetooth,
   };
 }
 
 export async function hasUsbDevice() {
-  let hasDevice = false;
-  if (isHidSupported) {
-    hasDevice = IS_ANDROID_APP
+  const transportSupport = getTransportSupportOrFail();
+
+  if (transportSupport.hid) {
+    return IS_ANDROID_APP
       ? await hasCapacitorHIDDevice()
       : await hasWebHIDDevice();
-  } else if (isWebUsbSupported) {
-    hasDevice = await hasWebUsbDevice();
   }
 
-  return hasDevice;
+  if (transportSupport.webUsb) {
+    return await hasWebUsbDevice();
+  }
+
+  return false;
 }
 
 function getInternalWalletVersion(version: PossibleWalletVersion) {
@@ -226,6 +234,8 @@ export async function reconnectLedger() {
 }
 
 export async function connectLedger(preferredTransport?: LedgerTransport) {
+  const transportSupport = getTransportSupportOrFail();
+
   if (preferredTransport) currentLedgerTransport = preferredTransport;
 
   try {
@@ -236,9 +246,9 @@ export async function connectLedger(preferredTransport?: LedgerTransport) {
 
       case 'usb':
       default:
-        if (isHidSupported) {
+        if (transportSupport.hid) {
           transport = await connectHID();
-        } else if (isWebUsbSupported) {
+        } else if (transportSupport.webUsb) {
           transport = await connectWebUsb();
         }
         break;
@@ -257,12 +267,9 @@ export async function connectLedger(preferredTransport?: LedgerTransport) {
   }
 }
 
-function waitLedgerTonAppDeadline(): Promise<boolean> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(false);
-    }, PAUSE * ATTEMPTS);
-  });
+async function waitLedgerTonAppDeadline(): Promise<boolean> {
+  await pause(PAUSE * ATTEMPTS);
+  return false;
 }
 
 export async function checkTonApp() {
@@ -658,9 +665,9 @@ export async function submitLedgerTransfer(
 
   const isFullTonBalance = !tokenAddress && balance === amount;
 
-  const sendMode = isFullTonBalance
+  const sendMode = (isFullTonBalance
     ? SendMode.CARRY_ALL_REMAINING_BALANCE
-    : SendMode.PAY_GAS_SEPARATELY + SendMode.IGNORE_ERRORS;
+    : SendMode.PAY_GAS_SEPARATELY) + SendMode.IGNORE_ERRORS;
 
   const walletSpecifiers = account!.ton.version === 'v3R2'
     ? { includeWalletOp: false }
@@ -670,7 +677,7 @@ export async function submitLedgerTransfer(
     const signedCell = await tonTransport!.signTransaction(path, {
       to: Address.parse(toAddress),
       sendMode,
-      seqno: seqno!,
+      seqno,
       timeout: getTransferExpirationTime(),
       bounce: isBounceable,
       amount: BigInt(amount),
@@ -680,7 +687,7 @@ export async function submitLedgerTransfer(
 
     const message: ApiSignedTransfer = {
       base64: signedCell.toBoc().toString('base64'),
-      seqno: seqno!,
+      seqno,
       localActivity: {
         amount: options.amount,
         fromAddress: fromAddress!,
@@ -743,7 +750,7 @@ export async function submitLedgerNftTransfer(options: {
   let forwardAmount = NFT_TRANSFER_FORWARD_AMOUNT;
 
   if (isNotcoinBurn) {
-    ({ forwardPayload, toAddress } = buildNotcoinVoucherExchange(nftAddress, nft!.index));
+    ({ forwardPayload, toAddress } = buildNotcoinVoucherExchange(nftAddress, nft.index));
     forwardAmount = 50000000n;
   } else if (comment) {
     forwardPayload = buildCommentPayload(comment);
@@ -757,7 +764,7 @@ export async function submitLedgerNftTransfer(options: {
     const signedCell = await tonTransport!.signTransaction(path, {
       to: Address.parse(nftAddress),
       sendMode: SendMode.PAY_GAS_SEPARATELY + SendMode.IGNORE_ERRORS,
-      seqno: seqno!,
+      seqno,
       timeout: getTransferExpirationTime(),
       bounce: true,
       amount: NFT_TRANSFER_AMOUNT,
@@ -776,7 +783,7 @@ export async function submitLedgerNftTransfer(options: {
 
     const message: ApiSignedTransfer = {
       base64: signedCell.toBoc().toString('base64'),
-      seqno: seqno!,
+      seqno,
       localActivity: {
         amount: 0n, // Regular NFT transfers should have no amount in the activity list
         fromAddress: fromAddress!,
@@ -799,7 +806,6 @@ export async function submitLedgerNftTransfer(options: {
 }
 
 function buildNotcoinVoucherExchange(nftAddress: string, nftIndex: number) {
-  // eslint-disable-next-line no-bitwise
   const first4Bits = Address.parse(nftAddress).hash.readUint8() >> 4;
   const toAddress = NOTCOIN_EXCHANGERS[first4Bits];
 
@@ -969,7 +975,7 @@ export async function signLedgerTransactions(accountId: string, messages: ApiTra
         seqno: params.seqno,
         localActivity: {
           amount: message.amount,
-          fromAddress: fromAddress!,
+          fromAddress,
           toAddress: message.toAddress,
           comment: message.payload?.type === 'comment' ? message.payload.comment : undefined,
           fee: 0n,
@@ -1000,6 +1006,43 @@ export async function signLedgerProof(accountId: string, proof: ApiTonConnectPro
   return result.signature.toString('base64');
 }
 
+export function submitLedgerDnsRenewal(
+  accountId: string,
+  nft: ApiNft,
+  realFee: bigint,
+) {
+  return submitLedgerTransfer(
+    {
+      accountId,
+      password: '',
+      toAddress: nft.address,
+      amount: TON_GAS.changeDns,
+    },
+    TONCOIN.slug,
+    { type: 'dnsRenew', fee: realFee, nft },
+    { type: 'unsafe', message: DnsItem.buildFillUpMessage() },
+  );
+}
+
+export function submitLedgerDnsChangeWallet(
+  accountId: string,
+  nft: ApiNft,
+  newWalletAddress: string,
+  realFee: bigint,
+) {
+  return submitLedgerTransfer(
+    {
+      accountId,
+      password: '',
+      toAddress: nft.address,
+      amount: TON_GAS.changeDns,
+    },
+    TONCOIN.slug,
+    { type: 'dnsChangeAddress', fee: realFee, nft },
+    { type: 'unsafe', message: DnsItem.buildChangeDnsWalletMessage(newWalletAddress) },
+  );
+}
+
 export async function getNextLedgerWallets(
   network: ApiNetwork,
   lastExistingIndex = -1,
@@ -1009,7 +1052,6 @@ export async function getNextLedgerWallets(
   let index = lastExistingIndex + 1;
 
   try {
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const walletInfo = await getLedgerWalletInfo(network, index);
 
@@ -1043,7 +1085,7 @@ export async function getLedgerWalletInfo(network: ApiNetwork, accountIndex: num
   return {
     index: accountIndex,
     address,
-    publicKey: publicKey!.toString('hex'),
+    publicKey: publicKey.toString('hex'),
     balance,
     version: DEFAULT_WALLET_VERSION,
     driver: 'HID',
@@ -1084,7 +1126,7 @@ async function getLedgerAccountPath(accountId: string) {
 
 function getLedgerAccountPathByIndex(index: number, isTestnet?: boolean, workchain: Workchain = WORKCHAIN) {
   const network = isTestnet ? 1 : 0;
-  const chain = workchain === -1 ? 255 : 0;
+  const chain = workchain === Workchain.MasterChain ? 255 : 0;
   return [44, 607, network, chain, index, 0];
 }
 
@@ -1096,6 +1138,7 @@ export async function getTonAppInfo() {
   const version = await tonTransport!.getVersion();
   const isUnsafeSupported = compareVersions(version, VERSION_WITH_UNSAFE) >= 0;
   const isJettonIdSupported = compareVersions(version, VERSION_WITH_JETTON_ID) >= 0
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
     && transport!.deviceModel?.id !== 'nanoS';
   return { version, isUnsafeSupported, isJettonIdSupported };
 }
@@ -1111,7 +1154,7 @@ function handleLedgerErrors(err: any) {
 
 async function tryDetectDevice(
   listDeviceFn: () => Promise<ICapacitorUSBDevice[]>,
-  createTransportFn?: NoneToVoidFunction,
+  createTransportFn?: () => Promise<unknown> | void,
 ) {
   try {
     for (let i = 0; i < DEVICE_DETECT_ATTEMPTS; i++) {
@@ -1132,11 +1175,20 @@ async function tryDetectDevice(
 }
 
 function hasWebHIDDevice() {
-  return tryDetectDevice(TransportWebHID.list, TransportWebHID.create);
+  return tryDetectDevice(() => TransportWebHID.list(), () => TransportWebHID.create());
 }
 function hasWebUsbDevice() {
-  return tryDetectDevice(TransportWebUSB.list, TransportWebUSB.create);
+  return tryDetectDevice(() => TransportWebUSB.list(), () => TransportWebUSB.create());
 }
 function hasCapacitorHIDDevice() {
   return tryDetectDevice(listLedgerDevices);
+}
+
+function getTransportSupportOrFail() {
+  // detectAvailableTransports must be called before calling this function
+  if (!transportSupport) {
+    throw new Error('detectAvailableTransports not called');
+  }
+
+  return transportSupport;
 }

@@ -7,18 +7,20 @@ import type { ApiStakingState } from '../../api/types';
 import { ActiveTab, ContentTab, type Theme } from '../../global/types';
 
 import { IS_CAPACITOR, IS_CORE_WALLET } from '../../config';
-import { getStakingStateStatus } from '../../global/helpers/staking';
 import {
   selectAccountStakingState,
   selectCurrentAccount,
   selectCurrentAccountSettings,
   selectCurrentAccountState,
   selectIsCurrentAccountViewMode,
+  selectIsStakingDisabled,
+  selectIsSwapDisabled,
 } from '../../global/selectors';
 import { useAccentColor } from '../../util/accentColor';
 import buildClassName from '../../util/buildClassName';
 import { getStatusBarHeight } from '../../util/capacitor';
 import { captureEvents, SwipeDirection } from '../../util/captureEvents';
+import { getStakingStateStatus } from '../../util/staking';
 import { setStatusBarStyle } from '../../util/switchTheme';
 import {
   IS_DELEGATED_BOTTOM_SHEET, IS_ELECTRON, IS_TOUCH_ENV, STICKY_CARD_INTERSECTION_THRESHOLD,
@@ -36,6 +38,8 @@ import useLastCallback from '../../hooks/useLastCallback';
 import usePreventPinchZoomGesture from '../../hooks/usePreventPinchZoomGesture';
 import useShowTransition from '../../hooks/useShowTransition';
 
+import LinkingDomainModal from '../domain/LinkingDomainModal';
+import RenewDomainModal from '../domain/RenewDomainModal';
 import InvoiceModal from '../receive/InvoiceModal';
 import ReceiveModal from '../receive/ReceiveModal';
 import StakeModal from '../staking/StakeModal';
@@ -65,6 +69,7 @@ type StateProps = {
   isViewMode?: boolean;
   isStakingInfoModalOpen?: boolean;
   isSwapDisabled?: boolean;
+  isStakingDisabled?: boolean;
   isOnRampDisabled?: boolean;
   isMediaViewerOpen?: boolean;
   theme: Theme;
@@ -83,6 +88,7 @@ function Main({
   isLedger,
   isStakingInfoModalOpen,
   isSwapDisabled,
+  isStakingDisabled,
   isOnRampDisabled,
   isMediaViewerOpen,
   theme,
@@ -101,12 +107,10 @@ function Main({
     updatePendingSwaps,
   } = getActions();
 
-  // eslint-disable-next-line no-null/no-null
-  const cardRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line no-null/no-null
-  const portraitContainerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line no-null/no-null
-  const landscapeContainerRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>();
+  const portraitContainerRef = useRef<HTMLDivElement>();
+  const landscapeContainerRef = useRef<HTMLDivElement>();
+
   const [canRenderStickyCard, setCanRenderStickyCard] = useState(false);
   const [shouldRenderDarkStatusBar, setShouldRenderDarkStatusBar] = useState(false);
   const safeAreaTop = IS_CAPACITOR ? getStatusBarHeight() : windowSize.get().safeAreaTop;
@@ -122,8 +126,11 @@ function Main({
   const { isPortrait, isLandscape } = useDeviceScreen();
   const {
     shouldRender: shouldRenderStickyCard,
-    transitionClassNames: stickyCardTransitionClassNames,
-  } = useShowTransition(canRenderStickyCard);
+    ref: stickyCardRef,
+  } = useShowTransition({
+    isOpen: canRenderStickyCard,
+    withShouldRender: true,
+  });
 
   useEffectOnce(() => {
     if (IS_CORE_WALLET) return;
@@ -182,7 +189,7 @@ function Main({
       return undefined;
     }
 
-    return captureEvents(portraitContainerRef.current!, {
+    return captureEvents(portraitContainerRef.current, {
       excludedClosestSelector: '.token-card',
       onSwipe: (e, direction) => {
         if (direction === SwipeDirection.Right) {
@@ -221,14 +228,15 @@ function Main({
           />
           {shouldRenderStickyCard && (
             <StickyCard
-              classNames={stickyCardTransitionClassNames}
+              ref={stickyCardRef}
             />
           )}
           {!isViewMode && (
             <PortraitActions
+              containerRef={portraitContainerRef}
               isTestnet={isTestnet}
               stakingStatus={stakingStatus}
-              isLedger={isLedger}
+              isStakingDisabled={isStakingDisabled}
               isSwapDisabled={isSwapDisabled}
               isOnRampDisabled={isOnRampDisabled}
               onEarnClick={handleEarnClick}
@@ -247,7 +255,14 @@ function Main({
         <div className={buildClassName(styles.sidebar, 'custom-scroll')}>
           <Warnings onOpenBackupWallet={openBackupWalletModal} />
           <Card onTokenCardClose={handleTokenCardClose} onYieldClick={handleEarnClick} />
-          {!isViewMode && <LandscapeActions stakingStatus={stakingStatus} isLedger={isLedger} theme={theme} />}
+          {!isViewMode && (
+            <LandscapeActions
+              containerRef={landscapeContainerRef}
+              stakingStatus={stakingStatus}
+              isLedger={isLedger}
+              theme={theme}
+            />
+          )}
         </div>
         <div className={styles.main}>
           <Content onStakedTokenClick={handleEarnClick} />
@@ -268,6 +283,8 @@ function Main({
       <StakingClaimModal />
       <VestingModal />
       <VestingPasswordModal />
+      <RenewDomainModal />
+      <LinkingDomainModal />
       {!IS_ELECTRON && !IS_DELEGATED_BOTTOM_SHEET && <UpdateAvailable />}
     </>
   );
@@ -280,7 +297,7 @@ export default memo(
       const accountState = selectCurrentAccountState(global);
       const { currentTokenSlug } = accountState ?? {};
 
-      const { isSwapDisabled, isOnRampDisabled } = global.restrictions;
+      const { isOnRampDisabled } = global.restrictions;
 
       const stakingState = global.currentAccountId
         ? selectAccountStakingState(global, global.currentAccountId)
@@ -294,7 +311,8 @@ export default memo(
         isViewMode: selectIsCurrentAccountViewMode(global),
         isStakingInfoModalOpen: global.isStakingInfoModalOpen,
         isMediaViewerOpen: Boolean(global.mediaViewer?.mediaId),
-        isSwapDisabled,
+        isSwapDisabled: selectIsSwapDisabled(global),
+        isStakingDisabled: selectIsStakingDisabled(global),
         isOnRampDisabled,
         theme: global.settings.theme,
         accentColorIndex: selectCurrentAccountSettings(global)?.accentColorIndex,
